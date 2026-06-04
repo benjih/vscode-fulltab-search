@@ -39,6 +39,6 @@
     "@vscode/test-electron": "^2.4.0",
     "glob": "^10.4.0",
     "mocha": "^10.7.0",
-    "typescript": "^5.5.0"
+    "typescript": "6.0.3"
   }
 }
