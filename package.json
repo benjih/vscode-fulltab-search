@@ -1,7 +1,7 @@
 {
-  "name": "zed-search",
-  "displayName": "Zed Search",
-  "description": "Zed-style project search with tabs, filters, and inline results",
+  "name": "fulltab-search",
+  "displayName": "FullTab Search",
+  "description": "Full-tab project search with tabs, filters, and inline results",
   "version": "0.0.1",
   "publisher": "local",
   "engines": {
@@ -11,14 +11,14 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:zedSearch.open"
+    "onCommand:fullTabSearch.open"
   ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "zedSearch.open",
-        "title": "Zed Search: Open Project Search",
+        "command": "fullTabSearch.open",
+        "title": "FullTab Search: Open Project Search",
         "icon": "$(search)"
       }
     ]

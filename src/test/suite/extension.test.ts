@@ -4,9 +4,9 @@ import * as vscode from 'vscode';
 suite('Extension Test Suite', () => {
 	vscode.window.showInformationMessage('Start all tests.');
 
-	test('Zed Search command opens panel', async () => {
-		await vscode.commands.executeCommand('zedSearch.open');
+	test('FullTab Search command opens panel', async () => {
+		await vscode.commands.executeCommand('fullTabSearch.open');
 		const commands = await vscode.commands.getCommands(true);
-		assert.ok(commands.includes('zedSearch.open'));
+		assert.ok(commands.includes('fullTabSearch.open'));
 	});
 });

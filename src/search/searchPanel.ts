@@ -2,8 +2,8 @@ import * as vscode from 'vscode';
 import { SearchEngine } from './searchEngine';
 import { ExtensionMessage, SearchTab, WebviewMessage } from './types';
 
-const VIEW_TYPE = 'zedSearch.panel';
-const HISTORY_KEY = 'zedSearch.history';
+const VIEW_TYPE = 'fullTabSearch.panel';
+const HISTORY_KEY = 'fullTabSearch.history';
 const MAX_TABS = 12;
 
 export class SearchPanel {
@@ -44,7 +44,7 @@ export class SearchPanel {
 
 		const panel = vscode.window.createWebviewPanel(
 			VIEW_TYPE,
-			'Project Search',
+			'FullTab Search',
 			vscode.ViewColumn.One,
 			{
 				enableScripts: true,
@@ -224,7 +224,7 @@ export class SearchPanel {
 	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<link href="${styleUri}" rel="stylesheet">
-	<title>Project Search</title>
+	<title>FullTab Search</title>
 </head>
 <body>
 	<div class="search-shell">
