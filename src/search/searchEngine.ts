@@ -7,6 +7,7 @@ import { ContextLine, FileResult, SearchMatch, SearchQuery, SearchResults } from
 
 const MAX_RESULTS = 10_000;
 const CONTEXT_LINES = 3;
+const EXPAND_CHUNK = 10;
 
 interface RipgrepLine {
 	type: 'match' | 'context' | 'begin' | 'end' | 'summary';
@@ -84,6 +85,43 @@ export class SearchEngine {
 		}
 
 		return count;
+	}
+
+	expandContext(
+		filePath: string,
+		direction: 'before' | 'after',
+		anchorLine: number,
+		count: number = EXPAND_CHUNK
+	): { lines: ContextLine[]; hasMore: boolean } {
+		const content = fs.readFileSync(filePath, 'utf8');
+		const allLines = content.split(/\r?\n/);
+		const totalLines = allLines.length;
+
+		if (direction === 'before') {
+			const endLine = anchorLine - 1;
+			if (endLine < 1) {
+				return { lines: [], hasMore: false };
+			}
+			const startLine = Math.max(1, endLine - count + 1);
+			const lines = this.sliceLines(allLines, startLine, endLine);
+			return { lines, hasMore: startLine > 1 };
+		}
+
+		const startLine = anchorLine + 1;
+		if (startLine > totalLines) {
+			return { lines: [], hasMore: false };
+		}
+		const endLine = Math.min(totalLines, startLine + count - 1);
+		const lines = this.sliceLines(allLines, startLine, endLine);
+		return { lines, hasMore: endLine < totalLines };
+	}
+
+	private sliceLines(allLines: string[], startLine: number, endLine: number): ContextLine[] {
+		const lines: ContextLine[] = [];
+		for (let line = startLine; line <= endLine; line++) {
+			lines.push({ line, text: allLines[line - 1] ?? '' });
+		}
+		return lines;
 	}
 
 	private buildArgs(query: SearchQuery, rootPath: string): string[] {

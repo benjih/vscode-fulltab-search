@@ -95,6 +95,25 @@ export class SearchPanel {
 			case 'replaceAll':
 				await this.runReplaceAll(message.tab);
 				break;
+			case 'expandMatch':
+				this.expandMatch(message.matchId, message.file, message.direction, message.anchorLine, message.count);
+				break;
+		}
+	}
+
+	private expandMatch(
+		matchId: number,
+		file: string,
+		direction: 'before' | 'after',
+		anchorLine: number,
+		count: number
+	): void {
+		try {
+			const { lines, hasMore } = this.engine.expandContext(file, direction, anchorLine, count);
+			this.postMessage({ type: 'expanded', matchId, direction, lines, hasMore });
+		} catch (error) {
+			const message = error instanceof Error ? error.message : 'Failed to load context';
+			this.postMessage({ type: 'error', message });
 		}
 	}
 

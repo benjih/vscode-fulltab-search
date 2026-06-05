@@ -21,6 +21,13 @@ let activeMatchIndex = 0;
 /** @type {ReturnType<typeof setTimeout> | undefined} */
 let searchDebounce;
 
+const EXPAND_STEP = 10;
+
+/** @typedef {{ contextBefore: ContextLine[]; contextAfter: ContextLine[]; canExpandBefore: boolean; canExpandAfter: boolean }} ExpandedSection */
+
+/** @type {Map<number, ExpandedSection>} */
+const expandedSections = new Map();
+
 const tabBar = /** @type {HTMLElement} */ (document.getElementById('tabBar'));
 const patternInput = /** @type {HTMLInputElement} */ (document.getElementById('patternInput'));
 const includeInput = /** @type {HTMLInputElement} */ (document.getElementById('includeInput'));
@@ -202,26 +209,127 @@ function renderLineContent(line, start, end, isActive) {
 	return `${before}<span class="${highlightClass}">${match}</span>${after}`;
 }
 
+/** @param {SearchMatch} match */
+function getFirstLineNumber(match) {
+	if (match.contextBefore.length > 0) {
+		return match.contextBefore[0].line;
+	}
+	return match.line;
+}
+
+/** @param {SearchMatch} match */
+function getLastLineNumber(match) {
+	if (match.contextAfter.length > 0) {
+		return match.contextAfter[match.contextAfter.length - 1].line;
+	}
+	return match.line;
+}
+
+/** @param {number} fromLine @param {number} toLine */
+function renderSectionGap(fromLine, toLine) {
+	const hidden = toLine - fromLine - 1;
+	if (hidden <= 0) {
+		return null;
+	}
+
+	const gap = document.createElement('div');
+	gap.className = 'section-gap';
+	gap.textContent = `${hidden} line${hidden === 1 ? '' : 's'} not shown`;
+	return gap;
+}
+
+/** @param {SearchMatch} match */
+function getEffectiveMatch(match) {
+	const expanded = expandedSections.get(match.id);
+	if (!expanded) {
+		return {
+			match,
+			canExpandBefore: getFirstLineNumber(match) > 1,
+			canExpandAfter: true,
+		};
+	}
+
+	return {
+		match: {
+			...match,
+			contextBefore: expanded.contextBefore,
+			contextAfter: expanded.contextAfter,
+		},
+		canExpandBefore: expanded.canExpandBefore,
+		canExpandAfter: expanded.canExpandAfter,
+	};
+}
+
+function requestExpand(match, direction) {
+	const { match: effective, canExpandBefore, canExpandAfter } = getEffectiveMatch(match);
+	if (direction === 'before' && !canExpandBefore) {
+		return;
+	}
+	if (direction === 'after' && !canExpandAfter) {
+		return;
+	}
+
+	const anchorLine =
+		direction === 'before' ? getFirstLineNumber(effective) : getLastLineNumber(effective);
+
+	vscode.postMessage({
+		type: 'expandMatch',
+		matchId: match.id,
+		file: match.file,
+		direction,
+		anchorLine,
+		count: EXPAND_STEP,
+	});
+}
+
+/** @param {'before' | 'after'} direction @param {SearchMatch} match */
+function renderExpandButton(direction, match) {
+	const { canExpandBefore, canExpandAfter } = getEffectiveMatch(match);
+	const canExpand = direction === 'before' ? canExpandBefore : canExpandAfter;
+	if (!canExpand) {
+		return null;
+	}
+
+	const button = document.createElement('button');
+	button.type = 'button';
+	button.className = `expand-context expand-${direction}`;
+	button.textContent =
+		direction === 'before'
+			? `Show ${EXPAND_STEP} more lines above`
+			: `Show ${EXPAND_STEP} more lines below`;
+	button.addEventListener('click', (event) => {
+		event.stopPropagation();
+		requestExpand(match, direction);
+	});
+	return button;
+}
+
 /** @param {SearchMatch} match @param {boolean} isActive */
 function renderMatchBlock(match, isActive) {
+	const { match: effectiveMatch } = getEffectiveMatch(match);
 	const block = document.createElement('div');
 	block.className = 'match-block';
 	block.dataset.matchId = String(match.id);
 
+	const expandBefore = renderExpandButton('before', match);
+	if (expandBefore) {
+		block.appendChild(expandBefore);
+	}
+
 	const lines = [];
 
-	for (const contextLine of match.contextBefore) {
+	for (const contextLine of effectiveMatch.contextBefore) {
 		lines.push({ lineNumber: contextLine.line, text: contextLine.text, isMatch: false, isActive: false });
 	}
 
 	lines.push({
-		lineNumber: match.line,
-		text: match.lineText,
+		lineNumber: effectiveMatch.line,
+		text: effectiveMatch.lineText,
 		isMatch: true,
 		isActive,
 	});
 
-	for (const contextLine of match.contextAfter) {
+	for (const contextLine of effectiveMatch.contextAfter) {
 		lines.push({ lineNumber: contextLine.line, text: contextLine.text, isMatch: false, isActive: false });
 	}
 
@@ -265,6 +373,11 @@ function renderMatchBlock(match, isActive) {
 	}
 
 	block.appendChild(snippet);
+
+	const expandAfter = renderExpandButton('after', match);
+	if (expandAfter) {
+		block.appendChild(expandAfter);
+	}
 
 	if (match.breadcrumb) {
 		const meta = document.createElement('div');
@@ -334,7 +447,17 @@ function renderResults() {
 		header.appendChild(openButton);
 		group.appendChild(header);
 
-		for (const match of fileResult.matches) {
+		for (let i = 0; i < fileResult.matches.length; i++) {
+			const match = fileResult.matches[i];
+			if (i > 0) {
+				const prev = fileResult.matches[i - 1];
+				const prevEffective = getEffectiveMatch(prev).match;
+				const currEffective = getEffectiveMatch(match).match;
+				const gap = renderSectionGap(getLastLineNumber(prevEffective), getFirstLineNumber(currEffective));
+				if (gap) {
+					group.appendChild(gap);
+				}
+			}
 			group.appendChild(renderMatchBlock(match, match.id === activeMatchIndex));
 		}
 
@@ -414,6 +537,7 @@ window.addEventListener('message', (event) => {
 			break;
 		case 'results':
 			currentResults = message.results;
+			expandedSections.clear();
 			activeMatchIndex = 0;
 			renderResults();
 			updateMatchCounter();
@@ -430,6 +554,34 @@ window.addEventListener('message', (event) => {
 			setStatus(`Replaced ${message.count} occurrence${message.count === 1 ? '' : 's'}`);
 			scheduleSearch();
 			break;
+		case 'expanded': {
+			const match = flattenMatches().find((entry) => entry.id === message.matchId);
+			if (!match) {
+				break;
+			}
+
+			let state = expandedSections.get(message.matchId);
+			if (!state) {
+				state = {
+					contextBefore: [...match.contextBefore],
+					contextAfter: [...match.contextAfter],
+					canExpandBefore: getFirstLineNumber(match) > 1,
+					canExpandAfter: true,
+				};
+				expandedSections.set(message.matchId, state);
+			}
+
+			if (message.direction === 'before') {
+				state.contextBefore = [...message.lines, ...state.contextBefore];
+				state.canExpandBefore = message.hasMore;
+			} else {
+				state.contextAfter = [...state.contextAfter, ...message.lines];
+				state.canExpandAfter = message.hasMore;
+			}
+
+			renderResults();
+			break;
+		}
 	}
 });
 

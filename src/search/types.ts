@@ -60,6 +60,7 @@ export type WebviewMessage =
 	| { type: 'openMatch'; file: string; line: number; column: number }
 	| { type: 'replaceMatch'; file: string; line: number; column: number; length: number; replacement: string }
 	| { type: 'replaceAll'; tab: SearchTab }
+	| { type: 'expandMatch'; matchId: number; file: string; direction: 'before' | 'after'; anchorLine: number; count: number }
 	| { type: 'ready' };
 
 export type ExtensionMessage =
@@ -67,4 +68,5 @@ export type ExtensionMessage =
 	| { type: 'searching'; tabId: string }
 	| { type: 'results'; results: SearchResults }
 	| { type: 'error'; message: string }
-	| { type: 'replaced'; count: number };
+	| { type: 'replaced'; count: number }
+	| { type: 'expanded'; matchId: number; direction: 'before' | 'after'; lines: ContextLine[]; hasMore: boolean };

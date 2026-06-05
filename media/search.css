@@ -223,14 +223,61 @@ input {
 }
 
 .match-block {
-	padding: 0 12px 8px 24px;
+	margin: 0 12px 6px 24px;
+	border: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.25));
+	border-radius: 4px;
+	overflow: hidden;
+	background: color-mix(in srgb, var(--vscode-foreground) 4%, var(--vscode-editor-background));
+}
+
+.expand-context {
+	display: block;
+	width: 100%;
+	padding: 4px 8px 4px calc(3ch + 20px);
+	border: none;
+	border-bottom: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.15));
+	background: transparent;
+	color: var(--vscode-textLink-foreground, var(--vscode-foreground));
+	font-size: 0.82em;
+	text-align: left;
+	cursor: pointer;
+	opacity: 0.85;
+}
+
+.expand-context.expand-after {
+	border-bottom: none;
+	border-top: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.15));
+}
+
+.expand-context:hover {
+	background: var(--vscode-list-hoverBackground);
+	opacity: 1;
+}
+
+.section-gap {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin: 2px 12px 6px 24px;
+	padding: 2px 8px;
+	font-size: 0.82em;
+	font-variant-numeric: tabular-nums;
+	opacity: 0.55;
+	user-select: none;
+}
+
+.section-gap::before,
+.section-gap::after {
+	content: '';
+	flex: 1;
+	height: 1px;
+	background: var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
 }
 
 .snippet {
 	font-family: var(--vscode-editor-font-family);
 	font-size: var(--vscode-editor-font-size);
 	line-height: 1.5;
-	border-radius: 4px;
 	overflow: hidden;
 }
 
@@ -273,9 +320,10 @@ input {
 }
 
 .match-meta {
-	padding: 2px 8px 4px  calc(3ch + 20px);
+	padding: 2px 8px 4px calc(3ch + 20px);
 	font-size: 0.85em;
 	opacity: 0.65;
+	border-top: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.15));
 }
 
 @media (max-width: 900px) {
