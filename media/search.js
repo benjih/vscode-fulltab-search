@@ -1,15 +1,26 @@
 // @ts-check
 /// <reference lib="dom" />
 
+// Webview UI script for the FullTab Search panel.
+//
+// VS Code extension webviews run in a sandboxed browser context — no Node.js,
+// no direct VS Code API access, and no access to the extension host's memory.
+// This file lives in media/ so the extension can load it as a static asset via
+// a webview panel URI. All communication with the extension host (searching,
+// opening files, replacing text) goes through the postMessage / onDidReceiveMessage
+// IPC bridge that VS Code provides for webviews.
+
 /** @typedef {{ id: string; pattern: string; include: string; exclude: string; caseSensitive: boolean; wholeWord: boolean; useRegex: boolean; replace: string }} SearchTab */
 /** @typedef {{ line: number; text: string }} ContextLine */
 /** @typedef {{ id: number; file: string; relativePath: string; line: number; column: number; lineText: string; matchStart: number; matchEnd: number; contextBefore: ContextLine[]; contextAfter: ContextLine[]; breadcrumb: string }} SearchMatch */
 /** @typedef {{ file: string; relativePath: string; directory: string; fileName: string; matches: SearchMatch[] }} FileResult */
 /** @typedef {{ queryId: string; fileResults: FileResult[]; total: number; truncated: boolean }} SearchResults */
 
+// acquireVsCodeApi() is injected by the webview runtime and must be called exactly once.
 /** @type {import('vscode') | undefined} */
 const vscode = acquireVsCodeApi()
 
+// Mutable UI state — all mutations go through the sync helpers below.
 /** @type {SearchTab[]} */
 let tabs = []
 /** @type {string | null} */
@@ -21,10 +32,13 @@ let activeMatchIndex = 0
 /** @type {ReturnType<typeof setTimeout> | undefined} */
 let searchDebounce
 
+// Number of lines to reveal each time the user clicks an expand-context button.
 const EXPAND_STEP = 10
 
 /** @typedef {{ contextBefore: ContextLine[]; contextAfter: ContextLine[]; canExpandBefore: boolean; canExpandAfter: boolean }} ExpandedSection */
 
+// Keyed by match ID. Tracks context lines that have been expanded beyond what
+// the initial search result included, so re-renders don't lose that state.
 /** @type {Map<number, ExpandedSection>} */
 const expandedSections = new Map()
 
@@ -170,6 +184,7 @@ function renderTabs() {
 	tabBar.appendChild(addButton)
 }
 
+// Debounces search requests so we don't flood the extension host on every keystroke.
 function scheduleSearch() {
 	syncTabFromInputs()
 	clearTimeout(searchDebounce)
@@ -263,6 +278,8 @@ function shouldMergeMatches(prev, curr) {
 	)
 }
 
+// Groups consecutive matches whose context windows overlap or touch into a single
+// rendered block, avoiding redundant gap lines between closely spaced hits.
 /** @param {SearchMatch[]} matches */
 function groupMatchesIntoSections(matches) {
 	/** @type {SearchMatch[][]} */
@@ -633,6 +650,7 @@ document.addEventListener("keydown", (event) => {
 	}
 })
 
+// IPC bridge — receives messages posted by the extension host via webview.postMessage().
 window.addEventListener("message", (event) => {
 	const message = event.data
 
@@ -705,4 +723,5 @@ window.addEventListener("message", (event) => {
 	}
 })
 
+// Signal to the extension host that the webview DOM is ready and can receive messages.
 vscode.postMessage({ type: "ready" })
