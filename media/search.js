@@ -11,8 +11,9 @@
 // IPC bridge that VS Code provides for webviews.
 
 /** @typedef {{ pattern: string; include: string; exclude: string; caseSensitive: boolean; wholeWord: boolean; useRegex: boolean; replace: string }} SearchState */
-/** @typedef {{ line: number; text: string }} ContextLine */
-/** @typedef {{ id: number; file: string; relativePath: string; line: number; column: number; lineText: string; matchStart: number; matchEnd: number; contextBefore: ContextLine[]; contextAfter: ContextLine[]; breadcrumb: string }} SearchMatch */
+/** @typedef {{ text: string; color: string | null }} TokenSpan */
+/** @typedef {{ line: number; text: string; tokens?: TokenSpan[] }} ContextLine */
+/** @typedef {{ id: number; file: string; relativePath: string; line: number; column: number; lineText: string; matchStart: number; matchEnd: number; contextBefore: ContextLine[]; contextAfter: ContextLine[]; breadcrumb: string; tokens?: TokenSpan[] }} SearchMatch */
 /** @typedef {{ file: string; relativePath: string; directory: string; fileName: string; matches: SearchMatch[] }} FileResult */
 /** @typedef {{ queryId: string; fileResults: FileResult[]; total: number; truncated: boolean }} SearchResults */
 
@@ -170,13 +171,75 @@ function escapeHtml(value) {
 		.replace(/"/g, "&quot;")
 }
 
-/** @param {string} line @param {number} start @param {number} end @param {boolean} isActive */
-function renderLineContent(line, start, end, isActive) {
-	const before = escapeHtml(line.slice(0, start))
-	const match = escapeHtml(line.slice(start, end))
-	const after = escapeHtml(line.slice(end))
-	const highlightClass = isActive ? "match-highlight" : "match-highlight"
-	return `${before}<span class="${highlightClass}">${match}</span>${after}`
+/**
+ * Extracts sub-spans covering character range [from, to) of the reconstructed line.
+ * @param {TokenSpan[]} spans
+ * @param {number} from
+ * @param {number} to
+ * @returns {TokenSpan[]}
+ */
+function sliceTokenSpans(spans, from, to) {
+	const result = []
+	let pos = 0
+	for (const span of spans) {
+		const spanEnd = pos + span.text.length
+		if (spanEnd <= from) {
+			pos = spanEnd
+			continue
+		}
+		if (pos >= to) break
+		const clampStart = Math.max(pos, from)
+		const clampEnd = Math.min(spanEnd, to)
+		result.push({
+			text: span.text.slice(clampStart - pos, clampEnd - pos),
+			color: span.color,
+		})
+		pos = spanEnd
+	}
+	return result
+}
+
+/**
+ * Renders an array of TokenSpans as an HTML string with inline color styles.
+ * @param {TokenSpan[]} spans
+ * @returns {string}
+ */
+function renderTokenSpans(spans) {
+	return spans
+		.map((span) => {
+			const escaped = escapeHtml(span.text)
+			return span.color
+				? `<span style="color:${span.color}">${escaped}</span>`
+				: escaped
+		})
+		.join("")
+}
+
+/**
+ * @param {string} line
+ * @param {number} start
+ * @param {number} end
+ * @param {boolean} isActive
+ * @param {TokenSpan[] | undefined} [tokens]
+ */
+function renderLineContent(line, start, end, isActive, tokens) {
+	const highlightClass = isActive
+		? "match-highlight active-highlight"
+		: "match-highlight"
+	if (!tokens || tokens.length === 0) {
+		const before = escapeHtml(line.slice(0, start))
+		const match = escapeHtml(line.slice(start, end))
+		const after = escapeHtml(line.slice(end))
+		return `${before}<span class="${highlightClass}">${match}</span>${after}`
+	}
+	const beforeSpans = sliceTokenSpans(tokens, 0, start)
+	const matchSpans = sliceTokenSpans(tokens, start, end)
+	const afterSpans = sliceTokenSpans(tokens, end, line.length)
+	return (
+		renderTokenSpans(beforeSpans) +
+		`<span class="${highlightClass}">${renderTokenSpans(matchSpans)}</span>` +
+		renderTokenSpans(afterSpans)
+	)
 }
 
 /** @param {SearchMatch} match */
@@ -237,7 +300,7 @@ function groupMatchesIntoSections(matches) {
 
 /** @param {SearchMatch[]} matches */
 function collectSectionLines(matches) {
-	/** @type {Map<number, { lineNumber: number; text: string; match: SearchMatch | null }>} */
+	/** @type {Map<number, { lineNumber: number; text: string; tokens: TokenSpan[] | undefined; match: SearchMatch | null }>} */
 	const byLine = new Map()
 
 	for (const match of matches) {
@@ -248,6 +311,7 @@ function collectSectionLines(matches) {
 				byLine.set(contextLine.line, {
 					lineNumber: contextLine.line,
 					text: contextLine.text,
+					tokens: contextLine.tokens,
 					match: null,
 				})
 			}
@@ -257,6 +321,7 @@ function collectSectionLines(matches) {
 			byLine.set(effective.line, {
 				lineNumber: effective.line,
 				text: effective.lineText,
+				tokens: effective.tokens,
 				match,
 			})
 		}
@@ -266,6 +331,7 @@ function collectSectionLines(matches) {
 				byLine.set(contextLine.line, {
 					lineNumber: contextLine.line,
 					text: contextLine.text,
+					tokens: contextLine.tokens,
 					match: null,
 				})
 			}
@@ -401,7 +467,10 @@ function renderMatchSection(matches) {
 				match.matchStart,
 				match.matchEnd,
 				isActive,
+				entry.tokens,
 			)
+		} else if (entry.tokens && entry.tokens.length > 0) {
+			content.innerHTML = renderTokenSpans(entry.tokens)
 		} else {
 			content.textContent = entry.text
 		}

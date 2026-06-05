@@ -9,9 +9,15 @@ export interface SearchQuery {
 	replace: string
 }
 
+export interface TokenSpan {
+	text: string
+	color: string | null
+}
+
 export interface ContextLine {
 	line: number
 	text: string
+	tokens?: TokenSpan[]
 }
 
 export interface SearchMatch {
@@ -26,6 +32,7 @@ export interface SearchMatch {
 	contextBefore: ContextLine[]
 	contextAfter: ContextLine[]
 	breadcrumb: string
+	tokens?: TokenSpan[]
 }
 
 export interface FileResult {

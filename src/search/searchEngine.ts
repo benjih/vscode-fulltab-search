@@ -150,7 +150,10 @@ export class SearchEngine {
 			// back anything after the last \n and prepend it to the next chunk.
 			let stdoutBuffer = ""
 			child.stdout.on("data", (chunk: Buffer) => {
-				const { lines, remainder } = splitLines(stdoutBuffer, chunk.toString("utf8"))
+				const { lines, remainder } = splitLines(
+					stdoutBuffer,
+					chunk.toString("utf8"),
+				)
 				stdoutBuffer = remainder
 				for (const line of lines) {
 					parseRipgrepLine(line, state)

@@ -3,7 +3,10 @@ import type { FileResult, SearchMatch } from "./types"
 
 // Appends chunk to buffer, returns complete lines and the leftover incomplete line.
 // Callers should store the returned remainder as the new buffer.
-export function splitLines(buffer: string, chunk: string): { lines: string[]; remainder: string } {
+export function splitLines(
+	buffer: string,
+	chunk: string,
+): { lines: string[]; remainder: string } {
 	const combined = buffer + chunk
 	const parts = combined.split("\n")
 	const remainder = parts.pop() ?? ""

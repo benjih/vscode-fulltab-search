@@ -1,6 +1,13 @@
 import * as vscode from "vscode"
+import { SyntaxTokenizer } from "../syntax/tokenizer"
 import { SearchEngine } from "./searchEngine"
-import type { ExtensionMessage, SearchState, WebviewMessage } from "./types"
+import type {
+	ContextLine,
+	ExtensionMessage,
+	SearchResults,
+	SearchState,
+	WebviewMessage,
+} from "./types"
 
 const VIEW_TYPE = "fullTabSearch.panel"
 const STATE_KEY = "fullTabSearch.state"
@@ -9,6 +16,7 @@ export class SearchPanel {
 	private static currentPanel: SearchPanel | undefined
 	private readonly panel: vscode.WebviewPanel
 	private readonly engine = new SearchEngine()
+	private readonly tokenizer: SyntaxTokenizer
 	private searchTokenSource: vscode.CancellationTokenSource | null = null
 	private lastState: SearchState | null = null
 
@@ -20,6 +28,7 @@ export class SearchPanel {
 	) {
 		this.panel = panel
 		this.lastState = globalState.get<SearchState | null>(STATE_KEY, null)
+		this.tokenizer = new SyntaxTokenizer(extensionUri, disposables)
 
 		this.panel.webview.html = this.getHtml()
 		this.panel.webview.onDidReceiveMessage(
@@ -105,7 +114,7 @@ export class SearchPanel {
 				await this.runReplaceAll(message.state)
 				break
 			case "expandMatch":
-				this.expandMatch(
+				await this.expandMatch(
 					message.matchId,
 					message.file,
 					message.direction,
@@ -116,13 +125,13 @@ export class SearchPanel {
 		}
 	}
 
-	private expandMatch(
+	private async expandMatch(
 		matchId: number,
 		file: string,
 		direction: "before" | "after",
 		anchorLine: number,
 		count: number,
-	): void {
+	): Promise<void> {
 		try {
 			const { lines, hasMore } = this.engine.expandContext(
 				file,
@@ -130,11 +139,19 @@ export class SearchPanel {
 				anchorLine,
 				count,
 			)
+			const tokenSpans = await this.tokenizer.tokenizeLines(
+				lines.map((l) => l.text),
+				file,
+			)
+			const tokenizedLines: ContextLine[] = lines.map((l, i) => ({
+				...l,
+				tokens: tokenSpans[i],
+			}))
 			this.postMessage({
 				type: "expanded",
 				matchId,
 				direction,
-				lines,
+				lines: tokenizedLines,
 				hasMore,
 			})
 		} catch (error) {
@@ -185,10 +202,59 @@ export class SearchPanel {
 				}
 			}
 
+			await this.attachTokens(results)
 			this.postMessage({ type: "results", results })
 		} catch (error) {
 			const message = error instanceof Error ? error.message : "Search failed"
 			this.postMessage({ type: "error", message })
+		}
+	}
+
+	private async attachTokens(results: SearchResults): Promise<void> {
+		for (const fileResult of results.fileResults) {
+			const lineMap = new Map<number, string>()
+			for (const match of fileResult.matches) {
+				for (const ctx of match.contextBefore) lineMap.set(ctx.line, ctx.text)
+				lineMap.set(match.line, match.lineText)
+				for (const ctx of match.contextAfter) lineMap.set(ctx.line, ctx.text)
+			}
+
+			// Ripgrep line numbers are 1-indexed; tokenizer uses 0-indexed file positions.
+			const sortedEntries = [...lineMap.entries()].sort(([a], [b]) => a - b)
+
+			// Split into contiguous groups so each group gets its own grammar state
+			// built from the actual file (not from a preceding group at a different depth).
+			const groups: Array<{ startLine: number; lines: string[] }> = []
+			let groupStart = 0
+			for (let i = 1; i <= sortedEntries.length; i++) {
+				const isEnd = i === sortedEntries.length
+				const hasGap =
+					!isEnd && sortedEntries[i][0] > sortedEntries[i - 1][0] + 1
+				if (isEnd || hasGap) {
+					const slice = sortedEntries.slice(groupStart, i)
+					groups.push({
+						startLine: slice[0][0] - 1, // convert to 0-indexed
+						lines: slice.map(([, text]) => text),
+					})
+					groupStart = i
+				}
+			}
+
+			// tokenizeFileGroups keys results by 0-indexed line number
+			const tokensByLine = await this.tokenizer.tokenizeFileGroups(
+				groups,
+				fileResult.file,
+			)
+
+			for (const match of fileResult.matches) {
+				match.tokens = tokensByLine.get(match.line - 1)
+				for (const ctx of match.contextBefore) {
+					ctx.tokens = tokensByLine.get(ctx.line - 1)
+				}
+				for (const ctx of match.contextAfter) {
+					ctx.tokens = tokensByLine.get(ctx.line - 1)
+				}
+			}
 		}
 	}
 
@@ -293,7 +359,7 @@ export class SearchPanel {
 <html lang="en">
 <head>
 	<meta charset="UTF-8">
-	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; font-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; font-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<link href="${styleUri}" rel="stylesheet">
 	<link href="${codiconsUri}" rel="stylesheet">
