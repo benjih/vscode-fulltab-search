@@ -3,7 +3,7 @@ import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { FileResult, SearchMatch, SearchQuery, SearchResults } from './types';
+import { ContextLine, FileResult, SearchMatch, SearchQuery, SearchResults } from './types';
 
 const MAX_RESULTS = 10_000;
 const CONTEXT_LINES = 3;
@@ -129,7 +129,7 @@ export class SearchEngine {
 	): Promise<Omit<SearchMatch, 'id' | 'breadcrumb'>[]> {
 		return new Promise((resolve, reject) => {
 			const matches: Omit<SearchMatch, 'id' | 'breadcrumb'>[] = [];
-			let pendingBefore: string[] = [];
+			let pendingBefore: ContextLine[] = [];
 			let currentMatch: Omit<SearchMatch, 'id' | 'breadcrumb'> | null = null;
 			let stderr = '';
 
@@ -160,7 +160,10 @@ export class SearchEngine {
 							break;
 						case 'context':
 							if (parsed.data?.lines?.text) {
-								const contextLine = parsed.data.lines.text.replace(/\r?\n$/, '');
+								const contextLine: ContextLine = {
+									line: parsed.data.line_number ?? 0,
+									text: parsed.data.lines.text.replace(/\r?\n$/, ''),
+								};
 								if (currentMatch) {
 									currentMatch.contextAfter.push(contextLine);
 								} else {

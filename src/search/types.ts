@@ -9,6 +9,11 @@ export interface SearchQuery {
 	replace: string;
 }
 
+export interface ContextLine {
+	line: number;
+	text: string;
+}
+
 export interface SearchMatch {
 	id: number;
 	file: string;
@@ -18,8 +23,8 @@ export interface SearchMatch {
 	lineText: string;
 	matchStart: number;
 	matchEnd: number;
-	contextBefore: string[];
-	contextAfter: string[];
+	contextBefore: ContextLine[];
+	contextAfter: ContextLine[];
 	breadcrumb: string;
 }
 

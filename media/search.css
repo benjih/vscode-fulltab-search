@@ -250,8 +250,9 @@ input {
 }
 
 .line-number {
-	width: 3ch;
+	min-width: 3ch;
 	text-align: right;
+	font-variant-numeric: tabular-nums;
 	opacity: 0.45;
 	flex-shrink: 0;
 	user-select: none;

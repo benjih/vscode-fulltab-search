@@ -2,7 +2,8 @@
 /// <reference lib="dom" />
 
 /** @typedef {{ id: string; pattern: string; include: string; exclude: string; caseSensitive: boolean; wholeWord: boolean; useRegex: boolean; replace: string }} SearchTab */
-/** @typedef {{ id: number; file: string; relativePath: string; line: number; column: number; lineText: string; matchStart: number; matchEnd: number; contextBefore: string[]; contextAfter: string[]; breadcrumb: string }} SearchMatch */
+/** @typedef {{ line: number; text: string }} ContextLine */
+/** @typedef {{ id: number; file: string; relativePath: string; line: number; column: number; lineText: string; matchStart: number; matchEnd: number; contextBefore: ContextLine[]; contextAfter: ContextLine[]; breadcrumb: string }} SearchMatch */
 /** @typedef {{ file: string; relativePath: string; directory: string; fileName: string; matches: SearchMatch[] }} FileResult */
 /** @typedef {{ queryId: string; fileResults: FileResult[]; total: number; truncated: boolean }} SearchResults */
 
@@ -210,7 +211,7 @@ function renderMatchBlock(match, isActive) {
 	const lines = [];
 
 	for (const contextLine of match.contextBefore) {
-		lines.push({ lineNumber: null, text: contextLine, isMatch: false, isActive: false });
+		lines.push({ lineNumber: contextLine.line, text: contextLine.text, isMatch: false, isActive: false });
 	}
 
 	lines.push({
@@ -221,7 +222,7 @@ function renderMatchBlock(match, isActive) {
 	});
 
 	for (const contextLine of match.contextAfter) {
-		lines.push({ lineNumber: null, text: contextLine, isMatch: false, isActive: false });
+		lines.push({ lineNumber: contextLine.line, text: contextLine.text, isMatch: false, isActive: false });
 	}
 
 	const snippet = document.createElement('div');
@@ -233,7 +234,7 @@ function renderMatchBlock(match, isActive) {
 
 		const lineNumber = document.createElement('span');
 		lineNumber.className = 'line-number';
-		lineNumber.textContent = entry.lineNumber ? String(entry.lineNumber) : '';
+		lineNumber.textContent = entry.lineNumber != null ? String(entry.lineNumber) : '';
 
 		const content = document.createElement('span');
 		content.className = 'line-content';
