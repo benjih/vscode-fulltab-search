@@ -48,14 +48,14 @@ describe("buildRipgrepArgs", () => {
 		expect(args).toContain("--word-regexp")
 	})
 
-	it("adds include and exclude globs", () => {
+	it("adds include and exclude globs with normalization", () => {
 		const args = buildRipgrepArgs(
 			baseQuery({ include: "src/**", exclude: "*.log, dist/**" }),
 			"/root",
 		)
 		expect(args).toContain("-g")
 		expect(args).toEqual(
-			expect.arrayContaining(["src/**", "!*.log", "!dist/**"]),
+			expect.arrayContaining(["**/src/**", "!*.log", "!**/dist/**"]),
 		)
 	})
 })

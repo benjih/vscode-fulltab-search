@@ -8,7 +8,7 @@ import {
 	MAX_RESULTS,
 	parseRipgrepLine,
 } from "./ripgrepParser"
-import { buildBreadcrumb, groupByFile } from "./searchUtils"
+import { buildBreadcrumb, groupByFile, splitLines } from "./searchUtils"
 import type {
 	ContextLine,
 	SearchMatch,
@@ -145,8 +145,14 @@ export class SearchEngine {
 				child.kill()
 			})
 
+			// Buffer across chunks: a single ripgrep JSON line can exceed the
+			// stream chunk size (e.g. minified tsconfig.tsbuildinfo), so we hold
+			// back anything after the last \n and prepend it to the next chunk.
+			let stdoutBuffer = ""
 			child.stdout.on("data", (chunk: Buffer) => {
-				for (const line of chunk.toString("utf8").split("\n")) {
+				const { lines, remainder } = splitLines(stdoutBuffer, chunk.toString("utf8"))
+				stdoutBuffer = remainder
+				for (const line of lines) {
 					parseRipgrepLine(line, state)
 
 					if (state.matches.length >= MAX_RESULTS) {

@@ -1,11 +1,43 @@
 import * as path from "node:path"
 import type { FileResult, SearchMatch } from "./types"
 
+// Appends chunk to buffer, returns complete lines and the leftover incomplete line.
+// Callers should store the returned remainder as the new buffer.
+export function splitLines(buffer: string, chunk: string): { lines: string[]; remainder: string } {
+	const combined = buffer + chunk
+	const parts = combined.split("\n")
+	const remainder = parts.pop() ?? ""
+	return { lines: parts, remainder }
+}
+
 export function splitPatterns(value: string): string[] {
 	return value
 		.split(",")
 		.map((part) => part.trim())
 		.filter(Boolean)
+}
+
+// Mirrors VS Code's glob normalization for search include/exclude patterns:
+// 1. Bare names/paths (no wildcards) become **/name/** to match anywhere in the tree.
+// 2. Trailing /* converts to /** so patterns like `packages/foo/*` match files
+//    at any depth inside the directory, same as VS Code's search behaviour.
+// 3. Patterns with a path separator get a **/ prefix so they match anywhere,
+//    not just rooted at the workspace root.
+export function normalizeGlob(pattern: string): string {
+	if (pattern.startsWith("**") || pattern.startsWith("/")) {
+		return pattern
+	}
+	const hasWildcard = /[*?{[]/.test(pattern)
+	if (!hasWildcard) {
+		return `**/${pattern}/**`
+	}
+	if (pattern.includes("/")) {
+		const recursive = pattern.endsWith("/*")
+			? `${pattern.slice(0, -1)}**`
+			: pattern
+		return `**/${recursive}`
+	}
+	return pattern
 }
 
 export function extractSymbol(line: string): string | null {
