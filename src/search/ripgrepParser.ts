@@ -1,4 +1,4 @@
-import { splitPatterns } from "./searchUtils"
+import { normalizeGlob, splitPatterns } from "./searchUtils"
 import type { ContextLine, SearchMatch, SearchQuery } from "./types"
 
 export const MAX_RESULTS = 10_000
@@ -102,6 +102,9 @@ export function buildRipgrepArgs(
 		"--json",
 		"--line-number",
 		"--no-heading",
+		"--no-ignore",
+		"--text",
+		"--no-ignore-vcs",
 		`--max-count=${MAX_RESULTS}`,
 		`-C${CONTEXT_LINES}`,
 	]
@@ -123,11 +126,11 @@ export function buildRipgrepArgs(
 	}
 
 	for (const pattern of splitPatterns(query.include)) {
-		args.push("-g", pattern)
+		args.push("-g", normalizeGlob(pattern))
 	}
 
 	for (const pattern of splitPatterns(query.exclude)) {
-		args.push("-g", `!${pattern}`)
+		args.push("-g", `!${normalizeGlob(pattern)}`)
 	}
 
 	args.push(rootPath)

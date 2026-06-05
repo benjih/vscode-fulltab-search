@@ -4,9 +4,60 @@ import {
 	buildBreadcrumb,
 	extractSymbol,
 	groupByFile,
+	normalizeGlob,
+	splitLines,
 	splitPatterns,
 } from "../../search/searchUtils"
 import type { SearchMatch } from "../../search/types"
+
+describe("splitLines", () => {
+	it("returns complete lines and holds back the incomplete remainder", () => {
+		const { lines, remainder } = splitLines("", "line1\nline2\npartial")
+		expect(lines).toEqual(["line1", "line2"])
+		expect(remainder).toBe("partial")
+	})
+
+	it("assembles a line split across two chunks", () => {
+		const first = splitLines("", "start-of-very-long-")
+		const second = splitLines(first.remainder, "line\nnext\n")
+		expect(second.lines).toEqual(["start-of-very-long-line", "next"])
+		expect(second.remainder).toBe("")
+	})
+
+	it("handles chunks with no newline", () => {
+		const { lines, remainder } = splitLines("already", "-buffered")
+		expect(lines).toEqual([])
+		expect(remainder).toBe("already-buffered")
+	})
+})
+
+describe("normalizeGlob", () => {
+	it("leaves already-anchored patterns alone", () => {
+		expect(normalizeGlob("**/src/**")).toBe("**/src/**")
+		expect(normalizeGlob("/absolute/path")).toBe("/absolute/path")
+	})
+
+	it("wraps bare directory names with **/ and /**", () => {
+		expect(normalizeGlob("src")).toBe("**/src/**")
+		expect(normalizeGlob("src/search")).toBe("**/src/search/**")
+	})
+
+	it("anchors patterns with path separators", () => {
+		expect(normalizeGlob("src/**")).toBe("**/src/**")
+		expect(normalizeGlob("test/**")).toBe("**/test/**")
+	})
+
+	it("converts trailing /* to /** for recursive matching", () => {
+		expect(normalizeGlob("packages/m2-typings/*")).toBe(
+			"**/packages/m2-typings/**",
+		)
+	})
+
+	it("leaves basename-only wildcard patterns alone", () => {
+		expect(normalizeGlob("*.ts")).toBe("*.ts")
+		expect(normalizeGlob("*.test.ts")).toBe("*.test.ts")
+	})
+})
 
 describe("splitPatterns", () => {
 	it("splits comma-separated globs and trims whitespace", () => {
