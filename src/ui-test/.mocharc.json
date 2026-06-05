@@ -1,5 +1,5 @@
 {
-  "timeout": 60000,
-  "ui": "bdd",
-  "color": true
+	"timeout": 60000,
+	"ui": "bdd",
+	"color": true
 }

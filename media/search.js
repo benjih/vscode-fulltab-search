@@ -28,21 +28,49 @@ const EXPAND_STEP = 10;
 /** @type {Map<number, ExpandedSection>} */
 const expandedSections = new Map();
 
-const tabBar = /** @type {HTMLElement} */ (document.getElementById('tabBar'));
-const patternInput = /** @type {HTMLInputElement} */ (document.getElementById('patternInput'));
-const includeInput = /** @type {HTMLInputElement} */ (document.getElementById('includeInput'));
-const excludeInput = /** @type {HTMLInputElement} */ (document.getElementById('excludeInput'));
-const replaceInput = /** @type {HTMLInputElement} */ (document.getElementById('replaceInput'));
-const caseToggle = /** @type {HTMLButtonElement} */ (document.getElementById('caseToggle'));
-const wordToggle = /** @type {HTMLButtonElement} */ (document.getElementById('wordToggle'));
-const regexToggle = /** @type {HTMLButtonElement} */ (document.getElementById('regexToggle'));
-const prevMatch = /** @type {HTMLButtonElement} */ (document.getElementById('prevMatch'));
-const nextMatch = /** @type {HTMLButtonElement} */ (document.getElementById('nextMatch'));
-const matchCounter = /** @type {HTMLElement} */ (document.getElementById('matchCounter'));
-const statusBar = /** @type {HTMLElement} */ (document.getElementById('statusBar'));
-const resultsEl = /** @type {HTMLElement} */ (document.getElementById('results'));
-const replaceOne = /** @type {HTMLButtonElement} */ (document.getElementById('replaceOne'));
-const replaceAllBtn = /** @type {HTMLButtonElement} */ (document.getElementById('replaceAll'));
+const tabBar = /** @type {HTMLElement} */ (document.getElementById("tabBar"));
+const patternInput = /** @type {HTMLInputElement} */ (
+	document.getElementById("patternInput")
+);
+const includeInput = /** @type {HTMLInputElement} */ (
+	document.getElementById("includeInput")
+);
+const excludeInput = /** @type {HTMLInputElement} */ (
+	document.getElementById("excludeInput")
+);
+const replaceInput = /** @type {HTMLInputElement} */ (
+	document.getElementById("replaceInput")
+);
+const caseToggle = /** @type {HTMLButtonElement} */ (
+	document.getElementById("caseToggle")
+);
+const wordToggle = /** @type {HTMLButtonElement} */ (
+	document.getElementById("wordToggle")
+);
+const regexToggle = /** @type {HTMLButtonElement} */ (
+	document.getElementById("regexToggle")
+);
+const prevMatch = /** @type {HTMLButtonElement} */ (
+	document.getElementById("prevMatch")
+);
+const nextMatch = /** @type {HTMLButtonElement} */ (
+	document.getElementById("nextMatch")
+);
+const matchCounter = /** @type {HTMLElement} */ (
+	document.getElementById("matchCounter")
+);
+const statusBar = /** @type {HTMLElement} */ (
+	document.getElementById("statusBar")
+);
+const resultsEl = /** @type {HTMLElement} */ (
+	document.getElementById("results")
+);
+const replaceOne = /** @type {HTMLButtonElement} */ (
+	document.getElementById("replaceOne")
+);
+const replaceAllBtn = /** @type {HTMLButtonElement} */ (
+	document.getElementById("replaceAll")
+);
 
 function createTabId() {
 	return `tab-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -52,13 +80,13 @@ function createTabId() {
 function createEmptyTab() {
 	return {
 		id: createTabId(),
-		pattern: '',
-		include: '',
-		exclude: 'node_modules/**, *.lock',
+		pattern: "",
+		include: "",
+		exclude: "node_modules/**, *.lock",
 		caseSensitive: false,
 		wholeWord: false,
 		useRegex: false,
-		replace: '',
+		replace: "",
 	};
 }
 
@@ -81,9 +109,9 @@ function syncInputsFromTab() {
 	includeInput.value = tab.include;
 	excludeInput.value = tab.exclude;
 	replaceInput.value = tab.replace;
-	caseToggle.classList.toggle('active', tab.caseSensitive);
-	wordToggle.classList.toggle('active', tab.wholeWord);
-	regexToggle.classList.toggle('active', tab.useRegex);
+	caseToggle.classList.toggle("active", tab.caseSensitive);
+	wordToggle.classList.toggle("active", tab.wholeWord);
+	regexToggle.classList.toggle("active", tab.useRegex);
 	renderTabs();
 }
 
@@ -93,26 +121,26 @@ function syncTabFromInputs() {
 	tab.include = includeInput.value;
 	tab.exclude = excludeInput.value;
 	tab.replace = replaceInput.value;
-	tab.caseSensitive = caseToggle.classList.contains('active');
-	tab.wholeWord = wordToggle.classList.contains('active');
-	tab.useRegex = regexToggle.classList.contains('active');
+	tab.caseSensitive = caseToggle.classList.contains("active");
+	tab.wholeWord = wordToggle.classList.contains("active");
+	tab.useRegex = regexToggle.classList.contains("active");
 	renderTabs();
 }
 
 function renderTabs() {
-	tabBar.innerHTML = '';
+	tabBar.innerHTML = "";
 
 	for (const tab of tabs) {
-		const button = document.createElement('button');
-		button.className = `tab${tab.id === activeTabId ? ' active' : ''}`;
-		button.title = tab.pattern || 'New search';
+		const button = document.createElement("button");
+		button.className = `tab${tab.id === activeTabId ? " active" : ""}`;
+		button.title = tab.pattern || "New search";
 
-		const label = document.createElement('span');
-		label.className = 'tab-label';
-		label.textContent = tab.pattern || 'New search';
+		const label = document.createElement("span");
+		label.className = "tab-label";
+		label.textContent = tab.pattern || "New search";
 		button.appendChild(label);
 
-		button.addEventListener('click', () => {
+		button.addEventListener("click", () => {
 			syncTabFromInputs();
 			activeTabId = tab.id;
 			syncInputsFromTab();
@@ -122,11 +150,11 @@ function renderTabs() {
 		tabBar.appendChild(button);
 	}
 
-	const addButton = document.createElement('button');
-	addButton.className = 'tab-add';
-	addButton.textContent = '+';
-	addButton.title = 'New search tab';
-	addButton.addEventListener('click', () => {
+	const addButton = document.createElement("button");
+	addButton.className = "tab-add";
+	addButton.textContent = "+";
+	addButton.title = "New search tab";
+	addButton.addEventListener("click", () => {
 		syncTabFromInputs();
 		const tab = createEmptyTab();
 		tabs = [tab, ...tabs].slice(0, 12);
@@ -136,7 +164,7 @@ function renderTabs() {
 		syncInputsFromTab();
 		renderResults();
 		updateMatchCounter();
-		setStatus('New search tab');
+		setStatus("New search tab");
 		patternInput.focus();
 	});
 	tabBar.appendChild(addButton);
@@ -147,7 +175,7 @@ function scheduleSearch() {
 	clearTimeout(searchDebounce);
 	searchDebounce = setTimeout(() => {
 		const tab = getActiveTab();
-		vscode.postMessage({ type: 'search', tab });
+		vscode.postMessage({ type: "search", tab });
 	}, 250);
 }
 
@@ -158,7 +186,7 @@ function setStatus(text) {
 function updateMatchCounter() {
 	const total = currentResults?.total ?? 0;
 	if (total === 0) {
-		matchCounter.textContent = '0/0';
+		matchCounter.textContent = "0/0";
 		return;
 	}
 
@@ -182,22 +210,23 @@ function focusMatch(index) {
 		return;
 	}
 
-	activeMatchIndex = ((index % matches.length) + matches.length) % matches.length;
+	activeMatchIndex =
+		((index % matches.length) + matches.length) % matches.length;
 	updateMatchCounter();
 	renderResults();
 
-	const activeEl = document.querySelector('.snippet-line.active');
+	const activeEl = document.querySelector(".snippet-line.active");
 	if (activeEl) {
-		activeEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+		activeEl.scrollIntoView({ block: "center", behavior: "smooth" });
 	}
 }
 
 function escapeHtml(value) {
 	return value
-		.replace(/&/g, '&amp;')
-		.replace(/</g, '&lt;')
-		.replace(/>/g, '&gt;')
-		.replace(/"/g, '&quot;');
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;");
 }
 
 /** @param {string} line @param {number} start @param {number} end @param {boolean} isActive */
@@ -205,7 +234,7 @@ function renderLineContent(line, start, end, isActive) {
 	const before = escapeHtml(line.slice(0, start));
 	const match = escapeHtml(line.slice(start, end));
 	const after = escapeHtml(line.slice(end));
-	const highlightClass = isActive ? 'match-highlight' : 'match-highlight';
+	const highlightClass = isActive ? "match-highlight" : "match-highlight";
 	return `${before}<span class="${highlightClass}">${match}</span>${after}`;
 }
 
@@ -229,7 +258,9 @@ function getLastLineNumber(match) {
 function shouldMergeMatches(prev, curr) {
 	const prevEffective = getEffectiveMatch(prev).match;
 	const currEffective = getEffectiveMatch(curr).match;
-	return getFirstLineNumber(currEffective) <= getLastLineNumber(prevEffective) + 1;
+	return (
+		getFirstLineNumber(currEffective) <= getLastLineNumber(prevEffective) + 1
+	);
 }
 
 /** @param {SearchMatch[]} matches */
@@ -308,9 +339,9 @@ function renderSectionGap(fromLine, toLine) {
 		return null;
 	}
 
-	const gap = document.createElement('div');
-	gap.className = 'section-gap';
-	gap.textContent = `${hidden} line${hidden === 1 ? '' : 's'} not shown`;
+	const gap = document.createElement("div");
+	gap.className = "section-gap";
+	gap.textContent = `${hidden} line${hidden === 1 ? "" : "s"} not shown`;
 	return gap;
 }
 
@@ -337,19 +368,25 @@ function getEffectiveMatch(match) {
 }
 
 function requestExpand(match, direction) {
-	const { match: effective, canExpandBefore, canExpandAfter } = getEffectiveMatch(match);
-	if (direction === 'before' && !canExpandBefore) {
+	const {
+		match: effective,
+		canExpandBefore,
+		canExpandAfter,
+	} = getEffectiveMatch(match);
+	if (direction === "before" && !canExpandBefore) {
 		return;
 	}
-	if (direction === 'after' && !canExpandAfter) {
+	if (direction === "after" && !canExpandAfter) {
 		return;
 	}
 
 	const anchorLine =
-		direction === 'before' ? getFirstLineNumber(effective) : getLastLineNumber(effective);
+		direction === "before"
+			? getFirstLineNumber(effective)
+			: getLastLineNumber(effective);
 
 	vscode.postMessage({
-		type: 'expandMatch',
+		type: "expandMatch",
 		matchId: match.id,
 		file: match.file,
 		direction,
@@ -361,25 +398,25 @@ function requestExpand(match, direction) {
 /** @param {'before' | 'after'} direction @param {SearchMatch} match */
 function renderExpandButton(direction, match) {
 	const { canExpandBefore, canExpandAfter } = getEffectiveMatch(match);
-	const canExpand = direction === 'before' ? canExpandBefore : canExpandAfter;
+	const canExpand = direction === "before" ? canExpandBefore : canExpandAfter;
 	if (!canExpand) {
 		return null;
 	}
 
-	const button = document.createElement('button');
-	button.type = 'button';
+	const button = document.createElement("button");
+	button.type = "button";
 	button.className = `expand-context expand-${direction}`;
 	button.title =
-		direction === 'before'
+		direction === "before"
 			? `Show ${EXPAND_STEP} more lines above`
 			: `Show ${EXPAND_STEP} more lines below`;
-	button.setAttribute('aria-label', button.title);
+	button.setAttribute("aria-label", button.title);
 
-	const icon = document.createElement('span');
-	icon.className = `codicon codicon-chevron-${direction === 'before' ? 'up' : 'down'}`;
+	const icon = document.createElement("span");
+	icon.className = `codicon codicon-chevron-${direction === "before" ? "up" : "down"}`;
 	button.appendChild(icon);
 
-	button.addEventListener('click', (event) => {
+	button.addEventListener("click", (event) => {
 		event.stopPropagation();
 		requestExpand(match, direction);
 	});
@@ -390,37 +427,37 @@ function renderExpandButton(direction, match) {
 function renderMatchSection(matches) {
 	const firstMatch = matches[0];
 	const lastMatch = matches[matches.length - 1];
-	const block = document.createElement('div');
-	block.className = 'match-block';
+	const block = document.createElement("div");
+	block.className = "match-block";
 	block.dataset.matchId = String(firstMatch.id);
 
-	const expandBefore = renderExpandButton('before', firstMatch);
+	const expandBefore = renderExpandButton("before", firstMatch);
 	if (expandBefore) {
 		block.appendChild(expandBefore);
 	}
 
 	const lines = collectSectionLines(matches);
-	const snippet = document.createElement('div');
-	snippet.className = 'snippet';
+	const snippet = document.createElement("div");
+	snippet.className = "snippet";
 
 	for (const entry of lines) {
 		const match = entry.match;
 		const isActive = match != null && match.id === activeMatchIndex;
-		const row = document.createElement('div');
-		row.className = `snippet-line${isActive ? ' active' : ''}`;
+		const row = document.createElement("div");
+		row.className = `snippet-line${isActive ? " active" : ""}`;
 
-		const lineNumber = document.createElement('span');
-		lineNumber.className = 'line-number';
+		const lineNumber = document.createElement("span");
+		lineNumber.className = "line-number";
 		lineNumber.textContent = String(entry.lineNumber);
 
-		const content = document.createElement('span');
-		content.className = 'line-content';
+		const content = document.createElement("span");
+		content.className = "line-content";
 		if (match) {
 			content.innerHTML = renderLineContent(
 				entry.text,
 				match.matchStart,
 				match.matchEnd,
-				isActive
+				isActive,
 			);
 		} else {
 			content.textContent = entry.text;
@@ -430,12 +467,12 @@ function renderMatchSection(matches) {
 		row.appendChild(content);
 
 		if (match) {
-			row.addEventListener('click', () => {
+			row.addEventListener("click", () => {
 				activeMatchIndex = match.id;
 				updateMatchCounter();
 				renderResults();
 				vscode.postMessage({
-					type: 'openMatch',
+					type: "openMatch",
 					file: match.file,
 					line: match.line,
 					column: match.column,
@@ -448,14 +485,14 @@ function renderMatchSection(matches) {
 
 	block.appendChild(snippet);
 
-	const expandAfter = renderExpandButton('after', lastMatch);
+	const expandAfter = renderExpandButton("after", lastMatch);
 	if (expandAfter) {
 		block.appendChild(expandAfter);
 	}
 
 	if (firstMatch.breadcrumb) {
-		const meta = document.createElement('div');
-		meta.className = 'match-meta';
+		const meta = document.createElement("div");
+		meta.className = "match-meta";
 		meta.textContent = firstMatch.breadcrumb;
 		block.appendChild(meta);
 	}
@@ -464,49 +501,49 @@ function renderMatchSection(matches) {
 }
 
 function renderResults() {
-	resultsEl.innerHTML = '';
+	resultsEl.innerHTML = "";
 
 	if (!currentResults || currentResults.total === 0) {
-		const empty = document.createElement('div');
-		empty.className = 'empty-state';
+		const empty = document.createElement("div");
+		empty.className = "empty-state";
 		empty.textContent = patternInput.value.trim()
-			? 'No results found'
-			: 'Enter a search query to search across your workspace';
+			? "No results found"
+			: "Enter a search query to search across your workspace";
 		resultsEl.appendChild(empty);
 		return;
 	}
 
 	for (const fileResult of currentResults.fileResults) {
-		const group = document.createElement('section');
-		group.className = 'file-group';
+		const group = document.createElement("section");
+		group.className = "file-group";
 
-		const header = document.createElement('div');
-		header.className = 'file-header';
+		const header = document.createElement("div");
+		header.className = "file-header";
 
-		const icon = document.createElement('span');
-		icon.className = 'file-icon';
-		icon.textContent = '📄';
+		const icon = document.createElement("span");
+		icon.className = "file-icon";
+		icon.textContent = "📄";
 
-		const name = document.createElement('span');
-		name.className = 'file-name';
+		const name = document.createElement("span");
+		name.className = "file-name";
 		name.textContent = fileResult.fileName;
 
-		const path = document.createElement('span');
-		path.className = 'file-path';
-		path.textContent = fileResult.directory ? `${fileResult.directory}/` : '';
+		const path = document.createElement("span");
+		path.className = "file-path";
+		path.textContent = fileResult.directory ? `${fileResult.directory}/` : "";
 
-		const breadcrumb = document.createElement('span');
-		breadcrumb.className = 'file-breadcrumb';
-		breadcrumb.textContent = fileResult.matches[0]?.breadcrumb ?? '';
+		const breadcrumb = document.createElement("span");
+		breadcrumb.className = "file-breadcrumb";
+		breadcrumb.textContent = fileResult.matches[0]?.breadcrumb ?? "";
 
-		const openButton = document.createElement('button');
-		openButton.className = 'open-file';
-		openButton.textContent = 'Open File';
-		openButton.addEventListener('click', () => {
+		const openButton = document.createElement("button");
+		openButton.className = "open-file";
+		openButton.textContent = "Open File";
+		openButton.addEventListener("click", () => {
 			const firstMatch = fileResult.matches[0];
 			if (firstMatch) {
 				vscode.postMessage({
-					type: 'openMatch',
+					type: "openMatch",
 					file: firstMatch.file,
 					line: firstMatch.line,
 					column: firstMatch.column,
@@ -527,9 +564,11 @@ function renderResults() {
 				const prevSection = sections[i - 1];
 				const currSection = sections[i];
 				const prevLast = getLastLineNumber(
-					getEffectiveMatch(prevSection[prevSection.length - 1]).match
+					getEffectiveMatch(prevSection[prevSection.length - 1]).match,
 				);
-				const currFirst = getFirstLineNumber(getEffectiveMatch(currSection[0]).match);
+				const currFirst = getFirstLineNumber(
+					getEffectiveMatch(currSection[0]).match,
+				);
 				const gap = renderSectionGap(prevLast, currFirst);
 				if (gap) {
 					group.appendChild(gap);
@@ -542,23 +581,23 @@ function renderResults() {
 	}
 }
 
-patternInput.addEventListener('input', scheduleSearch);
-includeInput.addEventListener('input', scheduleSearch);
-excludeInput.addEventListener('input', scheduleSearch);
+patternInput.addEventListener("input", scheduleSearch);
+includeInput.addEventListener("input", scheduleSearch);
+excludeInput.addEventListener("input", scheduleSearch);
 
-replaceInput.addEventListener('input', syncTabFromInputs);
+replaceInput.addEventListener("input", syncTabFromInputs);
 
 for (const toggle of [caseToggle, wordToggle, regexToggle]) {
-	toggle.addEventListener('click', () => {
-		toggle.classList.toggle('active');
+	toggle.addEventListener("click", () => {
+		toggle.classList.toggle("active");
 		scheduleSearch();
 	});
 }
 
-prevMatch.addEventListener('click', () => focusMatch(activeMatchIndex - 1));
-nextMatch.addEventListener('click', () => focusMatch(activeMatchIndex + 1));
+prevMatch.addEventListener("click", () => focusMatch(activeMatchIndex - 1));
+nextMatch.addEventListener("click", () => focusMatch(activeMatchIndex + 1));
 
-replaceOne.addEventListener('click', () => {
+replaceOne.addEventListener("click", () => {
 	const matches = flattenMatches();
 	const match = matches[activeMatchIndex];
 	const tab = getActiveTab();
@@ -567,7 +606,7 @@ replaceOne.addEventListener('click', () => {
 	}
 
 	vscode.postMessage({
-		type: 'replaceMatch',
+		type: "replaceMatch",
 		file: match.file,
 		line: match.line,
 		column: match.matchStart,
@@ -576,29 +615,29 @@ replaceOne.addEventListener('click', () => {
 	});
 });
 
-replaceAllBtn.addEventListener('click', () => {
+replaceAllBtn.addEventListener("click", () => {
 	syncTabFromInputs();
-	vscode.postMessage({ type: 'replaceAll', tab: getActiveTab() });
+	vscode.postMessage({ type: "replaceAll", tab: getActiveTab() });
 });
 
-document.addEventListener('keydown', (event) => {
-	if (event.key === 'Enter' && document.activeElement === patternInput) {
+document.addEventListener("keydown", (event) => {
+	if (event.key === "Enter" && document.activeElement === patternInput) {
 		clearTimeout(searchDebounce);
 		syncTabFromInputs();
-		vscode.postMessage({ type: 'search', tab: getActiveTab() });
+		vscode.postMessage({ type: "search", tab: getActiveTab() });
 	}
 
-	if (event.key === 'F4' || (event.key === 'g' && event.ctrlKey)) {
+	if (event.key === "F4" || (event.key === "g" && event.ctrlKey)) {
 		event.preventDefault();
 		focusMatch(activeMatchIndex + (event.shiftKey ? -1 : 1));
 	}
 });
 
-window.addEventListener('message', (event) => {
+window.addEventListener("message", (event) => {
 	const message = event.data;
 
 	switch (message.type) {
-		case 'init':
+		case "init":
 			tabs = message.tabs?.length ? message.tabs : [createEmptyTab()];
 			activeTabId = message.activeTabId ?? tabs[0].id;
 			syncInputsFromTab();
@@ -609,10 +648,10 @@ window.addEventListener('message', (event) => {
 				updateMatchCounter();
 			}
 			break;
-		case 'searching':
-			setStatus('Searching…');
+		case "searching":
+			setStatus("Searching…");
 			break;
-		case 'results':
+		case "results":
 			currentResults = message.results;
 			expandedSections.clear();
 			activeMatchIndex = 0;
@@ -621,18 +660,22 @@ window.addEventListener('message', (event) => {
 			setStatus(
 				message.results.truncated
 					? `${message.results.total}+ results (truncated)`
-					: `${message.results.total} result${message.results.total === 1 ? '' : 's'} in ${message.results.fileResults.length} file${message.results.fileResults.length === 1 ? '' : 's'}`
+					: `${message.results.total} result${message.results.total === 1 ? "" : "s"} in ${message.results.fileResults.length} file${message.results.fileResults.length === 1 ? "" : "s"}`,
 			);
 			break;
-		case 'error':
+		case "error":
 			setStatus(message.message);
 			break;
-		case 'replaced':
-			setStatus(`Replaced ${message.count} occurrence${message.count === 1 ? '' : 's'}`);
+		case "replaced":
+			setStatus(
+				`Replaced ${message.count} occurrence${message.count === 1 ? "" : "s"}`,
+			);
 			scheduleSearch();
 			break;
-		case 'expanded': {
-			const match = flattenMatches().find((entry) => entry.id === message.matchId);
+		case "expanded": {
+			const match = flattenMatches().find(
+				(entry) => entry.id === message.matchId,
+			);
 			if (!match) {
 				break;
 			}
@@ -648,7 +691,7 @@ window.addEventListener('message', (event) => {
 				expandedSections.set(message.matchId, state);
 			}
 
-			if (message.direction === 'before') {
+			if (message.direction === "before") {
 				state.contextBefore = [...message.lines, ...state.contextBefore];
 				state.canExpandBefore = message.hasMore;
 			} else {
@@ -662,4 +705,4 @@ window.addEventListener('message', (event) => {
 	}
 });
 
-vscode.postMessage({ type: 'ready' });
+vscode.postMessage({ type: "ready" });

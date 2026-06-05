@@ -1,22 +1,22 @@
 {
-  "version": "2.0.0",
-  "tasks": [
-    {
-      "label": "compile",
-      "type": "shell",
-      "command": "devbox run -- npm run compile",
-      "group": {
-        "kind": "build",
-        "isDefault": true
-      },
-      "problemMatcher": "$tsc"
-    },
-    {
-      "label": "watch",
-      "type": "shell",
-      "command": "devbox run -- npm run watch",
-      "isBackground": true,
-      "problemMatcher": "$tsc-watch"
-    }
-  ]
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "compile",
+			"type": "shell",
+			"command": "devbox run -- npm run compile",
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"problemMatcher": "$tsc"
+		},
+		{
+			"label": "watch",
+			"type": "shell",
+			"command": "devbox run -- npm run watch",
+			"isBackground": true,
+			"problemMatcher": "$tsc-watch"
+		}
+	]
 }

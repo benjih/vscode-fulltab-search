@@ -55,18 +55,38 @@ export interface SearchTab {
 }
 
 export type WebviewMessage =
-	| { type: 'search'; tab: SearchTab }
-	| { type: 'cancel' }
-	| { type: 'openMatch'; file: string; line: number; column: number }
-	| { type: 'replaceMatch'; file: string; line: number; column: number; length: number; replacement: string }
-	| { type: 'replaceAll'; tab: SearchTab }
-	| { type: 'expandMatch'; matchId: number; file: string; direction: 'before' | 'after'; anchorLine: number; count: number }
-	| { type: 'ready' };
+	| { type: "search"; tab: SearchTab }
+	| { type: "cancel" }
+	| { type: "openMatch"; file: string; line: number; column: number }
+	| {
+			type: "replaceMatch";
+			file: string;
+			line: number;
+			column: number;
+			length: number;
+			replacement: string;
+	  }
+	| { type: "replaceAll"; tab: SearchTab }
+	| {
+			type: "expandMatch";
+			matchId: number;
+			file: string;
+			direction: "before" | "after";
+			anchorLine: number;
+			count: number;
+	  }
+	| { type: "ready" };
 
 export type ExtensionMessage =
-	| { type: 'init'; tabs: SearchTab[]; activeTabId: string | null }
-	| { type: 'searching'; tabId: string }
-	| { type: 'results'; results: SearchResults }
-	| { type: 'error'; message: string }
-	| { type: 'replaced'; count: number }
-	| { type: 'expanded'; matchId: number; direction: 'before' | 'after'; lines: ContextLine[]; hasMore: boolean };
+	| { type: "init"; tabs: SearchTab[]; activeTabId: string | null }
+	| { type: "searching"; tabId: string }
+	| { type: "results"; results: SearchResults }
+	| { type: "error"; message: string }
+	| { type: "replaced"; count: number }
+	| {
+			type: "expanded";
+			matchId: number;
+			direction: "before" | "after";
+			lines: ContextLine[];
+			hasMore: boolean;
+	  };

@@ -1,25 +1,25 @@
-import * as path from 'path';
+import * as path from "node:path";
 import {
 	By,
 	EditorView,
 	InputBox,
 	ModalDialog,
-	WebView,
+	type WebView,
 	Workbench,
-} from 'vscode-extension-tester';
+} from "vscode-extension-tester";
 
 const FIXTURE_WORKSPACE = path.resolve(
 	__dirname,
-	'../../src/test/fixtures/sample-workspace'
+	"../../src/test/fixtures/sample-workspace",
 );
 
-export const OPEN_COMMAND = 'FullTab Search: Open Project Search';
+export const OPEN_COMMAND = "FullTab Search: Open Project Search";
 
 const DIALOG_CONFIRM_BUTTONS = [
-	'Yes, I trust the authors',
-	'Trust',
-	'Open',
-	'OK',
+	"Yes, I trust the authors",
+	"Trust",
+	"Open",
+	"OK",
 ];
 
 export async function dismissBlockingDialogs(): Promise<void> {
@@ -66,7 +66,7 @@ export async function ensureFixtureWorkspaceOpen(): Promise<void> {
 	}
 
 	const workbench = new Workbench();
-	for (const command of ['Open Folder', 'File: Open Folder']) {
+	for (const command of ["Open Folder", "File: Open Folder"]) {
 		try {
 			await workbench.executeCommand(command);
 			const input = await InputBox.create();
@@ -83,7 +83,9 @@ export async function ensureFixtureWorkspaceOpen(): Promise<void> {
 	throw new Error(`Failed to open fixture workspace at ${FIXTURE_WORKSPACE}`);
 }
 
-export async function openFullTabSearchPanel(timeoutMs = 30_000): Promise<void> {
+export async function openFullTabSearchPanel(
+	timeoutMs = 30_000,
+): Promise<void> {
 	const editorView = new EditorView();
 	const deadline = Date.now() + timeoutMs;
 
@@ -95,36 +97,43 @@ export async function openFullTabSearchPanel(timeoutMs = 30_000): Promise<void> 
 		await new Workbench().executeCommand(OPEN_COMMAND);
 		await new Promise((resolve) => setTimeout(resolve, 1500));
 		const titles = await editorView.getOpenEditorTitles();
-		if (titles.includes('FullTab Search')) {
+		if (titles.includes("FullTab Search")) {
 			return;
 		}
 	}
 
 	const titles = await editorView.getOpenEditorTitles();
-	throw new Error(`FullTab Search panel did not open. Open editors: ${titles.join(', ')}`);
+	throw new Error(
+		`FullTab Search panel did not open. Open editors: ${titles.join(", ")}`,
+	);
 }
 
 export async function waitForStatus(
 	view: WebView,
 	predicate: (text: string) => boolean,
-	timeoutMs = 20_000
+	timeoutMs = 20_000,
 ): Promise<string> {
 	const deadline = Date.now() + timeoutMs;
 	while (Date.now() < deadline) {
-		const bar = await view.findWebElement(By.id('statusBar'));
+		const bar = await view.findWebElement(By.id("statusBar"));
 		const text = await bar.getText();
 		if (predicate(text)) {
 			return text;
 		}
 		await new Promise((resolve) => setTimeout(resolve, 200));
 	}
-	const bar = await view.findWebElement(By.id('statusBar'));
+	const bar = await view.findWebElement(By.id("statusBar"));
 	const last = await bar.getText();
-	throw new Error(`Timed out waiting for status bar update. Last status: "${last}"`);
+	throw new Error(
+		`Timed out waiting for status bar update. Last status: "${last}"`,
+	);
 }
 
-export async function setPatternAndSearch(view: WebView, pattern: string): Promise<void> {
-	const input = await view.findWebElement(By.id('patternInput'));
+export async function setPatternAndSearch(
+	view: WebView,
+	pattern: string,
+): Promise<void> {
+	const input = await view.findWebElement(By.id("patternInput"));
 	await input.clear();
 	await input.sendKeys(pattern);
 	// Debounced search in the webview (250ms); avoid Enter which can behave differently in WebDriver.

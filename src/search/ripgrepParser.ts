@@ -1,11 +1,11 @@
-import { ContextLine, SearchMatch, SearchQuery } from './types';
-import { splitPatterns } from './searchUtils';
+import { splitPatterns } from "./searchUtils";
+import type { ContextLine, SearchMatch, SearchQuery } from "./types";
 
 export const MAX_RESULTS = 10_000;
 export const CONTEXT_LINES = 3;
 
 export interface RipgrepLine {
-	type: 'match' | 'context' | 'begin' | 'end' | 'summary';
+	type: "match" | "context" | "begin" | "end" | "summary";
 	data?: {
 		path?: { text: string };
 		lines?: { text: string };
@@ -14,7 +14,7 @@ export interface RipgrepLine {
 	};
 }
 
-export type RawSearchMatch = Omit<SearchMatch, 'id' | 'breadcrumb'>;
+export type RawSearchMatch = Omit<SearchMatch, "id" | "breadcrumb">;
 
 export interface RipgrepParseState {
 	matches: RawSearchMatch[];
@@ -43,15 +43,15 @@ export function parseRipgrepLine(line: string, state: RipgrepParseState): void {
 	}
 
 	switch (parsed.type) {
-		case 'begin':
+		case "begin":
 			state.pendingBefore = [];
 			state.currentMatch = null;
 			break;
-		case 'context':
+		case "context":
 			if (parsed.data?.lines?.text) {
 				const contextLine: ContextLine = {
 					line: parsed.data.line_number ?? 0,
-					text: parsed.data.lines.text.replace(/\r?\n$/, ''),
+					text: parsed.data.lines.text.replace(/\r?\n$/, ""),
 				};
 				if (state.currentMatch) {
 					state.currentMatch.contextAfter.push(contextLine);
@@ -60,14 +60,14 @@ export function parseRipgrepLine(line: string, state: RipgrepParseState): void {
 				}
 			}
 			break;
-		case 'match':
+		case "match":
 			if (parsed.data?.path?.text && parsed.data.lines?.text) {
 				const submatch = parsed.data.submatches?.[0];
 				if (!submatch) {
 					break;
 				}
 
-				const lineText = parsed.data.lines.text.replace(/\r?\n$/, '');
+				const lineText = parsed.data.lines.text.replace(/\r?\n$/, "");
 				const contextBefore = state.currentMatch
 					? [...state.currentMatch.contextAfter]
 					: [...state.pendingBefore];
@@ -87,44 +87,47 @@ export function parseRipgrepLine(line: string, state: RipgrepParseState): void {
 				state.pendingBefore = [];
 			}
 			break;
-		case 'end':
+		case "end":
 			state.pendingBefore = [];
 			state.currentMatch = null;
 			break;
 	}
 }
 
-export function buildRipgrepArgs(query: SearchQuery, rootPath: string): string[] {
+export function buildRipgrepArgs(
+	query: SearchQuery,
+	rootPath: string,
+): string[] {
 	const args = [
-		'--json',
-		'--line-number',
-		'--no-heading',
+		"--json",
+		"--line-number",
+		"--no-heading",
 		`--max-count=${MAX_RESULTS}`,
 		`-C${CONTEXT_LINES}`,
 	];
 
 	if (query.caseSensitive) {
-		args.push('--case-sensitive');
+		args.push("--case-sensitive");
 	} else {
-		args.push('--ignore-case');
+		args.push("--ignore-case");
 	}
 
 	if (query.wholeWord) {
-		args.push('--word-regexp');
+		args.push("--word-regexp");
 	}
 
 	if (query.useRegex) {
-		args.push('-e', query.pattern);
+		args.push("-e", query.pattern);
 	} else {
-		args.push('-F', query.pattern);
+		args.push("-F", query.pattern);
 	}
 
 	for (const pattern of splitPatterns(query.include)) {
-		args.push('-g', pattern);
+		args.push("-g", pattern);
 	}
 
 	for (const pattern of splitPatterns(query.exclude)) {
-		args.push('-g', `!${pattern}`);
+		args.push("-g", `!${pattern}`);
 	}
 
 	args.push(rootPath);

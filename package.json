@@ -1,66 +1,67 @@
 {
-  "name": "fulltab-search",
-  "displayName": "FullTab Search",
-  "description": "Full-tab project search with tabs, filters, and inline results",
-  "version": "0.0.1",
-  "publisher": "local",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/benjih/vscode-fulltab-search.git"
-  },
-  "engines": {
-    "vscode": "^1.85.0"
-  },
-  "categories": [
-    "Other"
-  ],
-  "capabilities": {
-    "untrustedWorkspaces": {
-      "supported": true
-    },
-    "virtualWorkspaces": true
-  },
-  "activationEvents": [
-    "onCommand:fullTabSearch.open"
-  ],
-  "main": "./out/extension.js",
-  "contributes": {
-    "commands": [
-      {
-        "command": "fullTabSearch.open",
-        "title": "FullTab Search: Open Project Search",
-        "icon": "$(search)"
-      }
-    ]
-  },
-  "scripts": {
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
-    "lint": "tsc --noEmit -p ./",
-    "test": "npm run test:unit && npm run test:integration",
-    "test:unit": "vitest run",
-    "test:unit:watch": "vitest",
-    "test:integration": "npm run compile && node ./out/test/runTest.js",
-    "test:ui": "npm run compile && EXTENSIONS_FOLDER=.test-extensions EXTENSION_DEV_PATH=. extest setup-and-run \"./out/ui-test/**/*.ui.test.js\" --code_version max --code_settings ./src/ui-test/ui-test-settings.json --extensions_dir .test-extensions --storage test-resources -m ./src/ui-test/.mocharc.json --open_resource ./src/test/fixtures/sample-workspace",
-    "vscode:prepublish": "npm run compile",
-    "package": "vsce package"
-  },
-  "dependencies": {
-    "@vscode/codicons": "^0.0.45",
-    "@vscode/ripgrep": "^1.15.14"
-  },
-  "devDependencies": {
-    "@types/chai": "^4.3.20",
-    "@types/mocha": "^10.0.0",
-    "@types/node": "^20.14.0",
-    "@types/vscode": "^1.85.0",
-    "@vscode/test-electron": "^2.4.0",
-    "@vscode/vsce": "^3.9.2",
-    "chai": "^4.5.0",
-    "glob": "^10.4.0",
-    "mocha": "^10.7.0",
-    "vscode-extension-tester": "^8.23.0",
-    "typescript": "6.0.3",
-    "vitest": "^3.2.4"
-  }
+	"name": "fulltab-search",
+	"displayName": "FullTab Search",
+	"description": "Full-tab project search with tabs, filters, and inline results",
+	"version": "0.0.1",
+	"publisher": "local",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/benjih/vscode-fulltab-search.git"
+	},
+	"engines": {
+		"vscode": "^1.85.0"
+	},
+	"categories": [
+		"Other"
+	],
+	"capabilities": {
+		"untrustedWorkspaces": {
+			"supported": true
+		},
+		"virtualWorkspaces": true
+	},
+	"activationEvents": [
+		"onCommand:fullTabSearch.open"
+	],
+	"main": "./out/extension.js",
+	"contributes": {
+		"commands": [
+			{
+				"command": "fullTabSearch.open",
+				"title": "FullTab Search: Open Project Search",
+				"icon": "$(search)"
+			}
+		]
+	},
+	"scripts": {
+		"compile": "tsc -p ./",
+		"watch": "tsc -watch -p ./",
+		"lint": "tsc --noEmit -p ./ && biome check . --fix",
+		"test": "npm run test:unit && npm run test:integration",
+		"test:unit": "vitest run",
+		"test:unit:watch": "vitest",
+		"test:integration": "npm run compile && node ./out/test/runTest.js",
+		"test:ui": "npm run compile && EXTENSIONS_FOLDER=.test-extensions EXTENSION_DEV_PATH=. extest setup-and-run \"./out/ui-test/**/*.ui.test.js\" --code_version max --code_settings ./src/ui-test/ui-test-settings.json --extensions_dir .test-extensions --storage test-resources -m ./src/ui-test/.mocharc.json --open_resource ./src/test/fixtures/sample-workspace",
+		"vscode:prepublish": "npm run compile",
+		"package": "vsce package"
+	},
+	"dependencies": {
+		"@vscode/codicons": "^0.0.45",
+		"@vscode/ripgrep": "^1.15.14"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.16",
+		"@types/chai": "^4.3.20",
+		"@types/mocha": "^10.0.0",
+		"@types/node": "^20.14.0",
+		"@types/vscode": "^1.85.0",
+		"@vscode/test-electron": "^2.4.0",
+		"@vscode/vsce": "^3.9.2",
+		"chai": "^4.5.0",
+		"glob": "^10.4.0",
+		"mocha": "^10.7.0",
+		"typescript": "6.0.3",
+		"vitest": "^3.2.4",
+		"vscode-extension-tester": "^8.23.0"
+	}
 }

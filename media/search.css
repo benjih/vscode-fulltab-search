@@ -148,7 +148,10 @@ input {
 .icon-button,
 .action-button {
 	border: 1px solid var(--vscode-button-border, transparent);
-	background: var(--vscode-button-secondaryBackground, rgba(128, 128, 128, 0.15));
+	background: var(
+		--vscode-button-secondaryBackground,
+		rgba(128, 128, 128, 0.15)
+	);
 	border-radius: 4px;
 	padding: 4px 8px;
 	cursor: pointer;
@@ -218,7 +221,11 @@ input {
 	padding: 6px 12px;
 	position: sticky;
 	top: 0;
-	background: color-mix(in srgb, var(--vscode-foreground) 12%, var(--vscode-editor-background));
+	background: color-mix(
+		in srgb,
+		var(--vscode-foreground) 12%,
+		var(--vscode-editor-background)
+	);
 	border-bottom: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
 	z-index: 1;
 }
@@ -252,7 +259,10 @@ input {
 .open-file {
 	flex-shrink: 0;
 	border: 1px solid var(--vscode-button-border, transparent);
-	background: var(--vscode-button-secondaryBackground, rgba(128, 128, 128, 0.15));
+	background: var(
+		--vscode-button-secondaryBackground,
+		rgba(128, 128, 128, 0.15)
+	);
 	border-radius: 4px;
 	padding: 2px 8px;
 	cursor: pointer;
@@ -264,7 +274,11 @@ input {
 	border: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.25));
 	border-radius: 4px;
 	overflow: hidden;
-	background: color-mix(in srgb, var(--vscode-foreground) 4%, var(--vscode-editor-background));
+	background: color-mix(
+		in srgb,
+		var(--vscode-foreground) 4%,
+		var(--vscode-editor-background)
+	);
 }
 
 .expand-context {
@@ -309,7 +323,7 @@ input {
 
 .section-gap::before,
 .section-gap::after {
-	content: '';
+	content: "";
 	flex: 1;
 	height: 1px;
 	background: var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
@@ -336,7 +350,11 @@ input {
 }
 
 .snippet-line.active {
-	background: color-mix(in srgb, var(--vscode-editor-findMatchHighlightBackground, #ea5) 35%, transparent);
+	background: color-mix(
+		in srgb,
+		var(--vscode-editor-findMatchHighlightBackground, #ea5) 35%,
+		transparent
+	);
 }
 
 .line-number {
@@ -353,7 +371,10 @@ input {
 }
 
 .match-highlight {
-	background: var(--vscode-editor-findMatchHighlightBackground, rgba(234, 92, 0, 0.33));
+	background: var(
+		--vscode-editor-findMatchHighlightBackground,
+		rgba(234, 92, 0, 0.33)
+	);
 	border-radius: 2px;
 }
 

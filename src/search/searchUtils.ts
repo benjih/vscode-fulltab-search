@@ -1,9 +1,9 @@
-import * as path from 'path';
-import { FileResult, SearchMatch } from './types';
+import * as path from "node:path";
+import type { FileResult, SearchMatch } from "./types";
 
 export function splitPatterns(value: string): string[] {
 	return value
-		.split(',')
+		.split(",")
 		.map((part) => part.trim())
 		.filter(Boolean);
 }
@@ -21,11 +21,13 @@ export function extractSymbol(line: string): string | null {
 	for (const pattern of patterns) {
 		const result = pattern.exec(line);
 		if (result) {
-			const keyword = line.trim().split(/\s+/)[0]?.replace('pub', '').replace('export', '') || '';
-			if (keyword === 'impl') {
+			const keyword =
+				line.trim().split(/\s+/)[0]?.replace("pub", "").replace("export", "") ||
+				"";
+			if (keyword === "impl") {
 				return `impl ${result[1]}`;
 			}
-			if (keyword === 'fn' || keyword === 'function' || keyword === 'async') {
+			if (keyword === "fn" || keyword === "function" || keyword === "async") {
 				return `fn ${result[1]}`;
 			}
 			return result[1];
@@ -46,10 +48,13 @@ export function buildBreadcrumb(lines: string[], matchLine: number): string {
 		}
 	}
 
-	return parts.join(' › ');
+	return parts.join(" › ");
 }
 
-export function groupByFile(matches: SearchMatch[], workspaceRoot: string): FileResult[] {
+export function groupByFile(
+	matches: SearchMatch[],
+	workspaceRoot: string,
+): FileResult[] {
 	const byFile = new Map<string, SearchMatch[]>();
 
 	for (const match of matches) {
@@ -64,7 +69,7 @@ export function groupByFile(matches: SearchMatch[], workspaceRoot: string): File
 		return {
 			file,
 			relativePath,
-			directory: directory === '.' ? '' : directory,
+			directory: directory === "." ? "" : directory,
 			fileName: path.basename(file),
 			matches: fileMatches,
 		};

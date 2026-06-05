@@ -1,1 +1,1 @@
-export const MARKER = '__FULLTAB_FIXTURE_MARKER__';
+export const MARKER = "__FULLTAB_FIXTURE_MARKER__";

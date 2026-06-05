@@ -1,9 +1,9 @@
-import * as vscode from 'vscode';
-import { SearchEngine } from './searchEngine';
-import { ExtensionMessage, SearchTab, WebviewMessage } from './types';
+import * as vscode from "vscode";
+import { SearchEngine } from "./searchEngine";
+import type { ExtensionMessage, SearchTab, WebviewMessage } from "./types";
 
-const VIEW_TYPE = 'fullTabSearch.panel';
-const HISTORY_KEY = 'fullTabSearch.history';
+const VIEW_TYPE = "fullTabSearch.panel";
+const HISTORY_KEY = "fullTabSearch.history";
 const MAX_TABS = 12;
 
 export class SearchPanel {
@@ -18,7 +18,7 @@ export class SearchPanel {
 		panel: vscode.WebviewPanel,
 		private readonly extensionUri: vscode.Uri,
 		private readonly globalState: vscode.Memento,
-		disposables: vscode.Disposable[]
+		disposables: vscode.Disposable[],
 	) {
 		this.panel = panel;
 		this.tabs = globalState.get<SearchTab[]>(HISTORY_KEY, []);
@@ -28,12 +28,16 @@ export class SearchPanel {
 		this.panel.webview.onDidReceiveMessage(
 			(message) => void this.handleMessage(message as WebviewMessage),
 			undefined,
-			disposables
+			disposables,
 		);
-		this.panel.onDidDispose(() => {
-			SearchPanel.currentPanel = undefined;
-			this.cancelSearch();
-		}, null, disposables);
+		this.panel.onDidDispose(
+			() => {
+				SearchPanel.currentPanel = undefined;
+				this.cancelSearch();
+			},
+			null,
+			disposables,
+		);
 	}
 
 	static show(context: vscode.ExtensionContext): void {
@@ -44,23 +48,29 @@ export class SearchPanel {
 
 		const panel = vscode.window.createWebviewPanel(
 			VIEW_TYPE,
-			'FullTab Search',
+			"FullTab Search",
 			vscode.ViewColumn.One,
 			{
 				enableScripts: true,
 				retainContextWhenHidden: true,
 				localResourceRoots: [
-					vscode.Uri.joinPath(context.extensionUri, 'media'),
-					vscode.Uri.joinPath(context.extensionUri, 'node_modules', '@vscode', 'codicons', 'dist'),
+					vscode.Uri.joinPath(context.extensionUri, "media"),
+					vscode.Uri.joinPath(
+						context.extensionUri,
+						"node_modules",
+						"@vscode",
+						"codicons",
+						"dist",
+					),
 				],
-			}
+			},
 		);
 
 		SearchPanel.currentPanel = new SearchPanel(
 			panel,
 			context.extensionUri,
 			context.globalState,
-			context.subscriptions
+			context.subscriptions,
 		);
 	}
 
@@ -70,36 +80,42 @@ export class SearchPanel {
 
 	private async handleMessage(message: WebviewMessage): Promise<void> {
 		switch (message.type) {
-			case 'ready':
+			case "ready":
 				this.postMessage({
-					type: 'init',
+					type: "init",
 					tabs: this.tabs,
 					activeTabId: this.activeTabId,
 				});
 				break;
-			case 'search':
+			case "search":
 				await this.runSearch(message.tab);
 				break;
-			case 'cancel':
+			case "cancel":
 				this.cancelSearch();
 				break;
-			case 'openMatch':
+			case "openMatch":
 				await this.openMatch(message.file, message.line, message.column);
 				break;
-			case 'replaceMatch':
+			case "replaceMatch":
 				await this.replaceMatch(
 					message.file,
 					message.line,
 					message.column,
 					message.length,
-					message.replacement
+					message.replacement,
 				);
 				break;
-			case 'replaceAll':
+			case "replaceAll":
 				await this.runReplaceAll(message.tab);
 				break;
-			case 'expandMatch':
-				this.expandMatch(message.matchId, message.file, message.direction, message.anchorLine, message.count);
+			case "expandMatch":
+				this.expandMatch(
+					message.matchId,
+					message.file,
+					message.direction,
+					message.anchorLine,
+					message.count,
+				);
 				break;
 		}
 	}
@@ -107,16 +123,28 @@ export class SearchPanel {
 	private expandMatch(
 		matchId: number,
 		file: string,
-		direction: 'before' | 'after',
+		direction: "before" | "after",
 		anchorLine: number,
-		count: number
+		count: number,
 	): void {
 		try {
-			const { lines, hasMore } = this.engine.expandContext(file, direction, anchorLine, count);
-			this.postMessage({ type: 'expanded', matchId, direction, lines, hasMore });
+			const { lines, hasMore } = this.engine.expandContext(
+				file,
+				direction,
+				anchorLine,
+				count,
+			);
+			this.postMessage({
+				type: "expanded",
+				matchId,
+				direction,
+				lines,
+				hasMore,
+			});
 		} catch (error) {
-			const message = error instanceof Error ? error.message : 'Failed to load context';
-			this.postMessage({ type: 'error', message });
+			const message =
+				error instanceof Error ? error.message : "Failed to load context";
+			this.postMessage({ type: "error", message });
 		}
 	}
 
@@ -124,7 +152,7 @@ export class SearchPanel {
 		this.persistTab(tab);
 		this.cancelSearch();
 		this.searchTokenSource = new vscode.CancellationTokenSource();
-		this.postMessage({ type: 'searching', tabId: tab.id });
+		this.postMessage({ type: "searching", tabId: tab.id });
 
 		try {
 			const results = await this.engine.search(
@@ -138,27 +166,33 @@ export class SearchPanel {
 					useRegex: tab.useRegex,
 					replace: tab.replace,
 				},
-				this.searchTokenSource.token
+				this.searchTokenSource.token,
 			);
 
 			const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 			if (workspaceRoot) {
 				for (const fileResult of results.fileResults) {
-					fileResult.relativePath = vscode.workspace.asRelativePath(fileResult.file);
-					fileResult.directory = fileResult.relativePath.includes('/')
-						? fileResult.relativePath.slice(0, fileResult.relativePath.lastIndexOf('/'))
-						: '';
-					fileResult.fileName = fileResult.relativePath.split('/').pop() ?? fileResult.fileName;
+					fileResult.relativePath = vscode.workspace.asRelativePath(
+						fileResult.file,
+					);
+					fileResult.directory = fileResult.relativePath.includes("/")
+						? fileResult.relativePath.slice(
+								0,
+								fileResult.relativePath.lastIndexOf("/"),
+							)
+						: "";
+					fileResult.fileName =
+						fileResult.relativePath.split("/").pop() ?? fileResult.fileName;
 					for (const match of fileResult.matches) {
 						match.relativePath = fileResult.relativePath;
 					}
 				}
 			}
 
-			this.postMessage({ type: 'results', results });
+			this.postMessage({ type: "results", results });
 		} catch (error) {
-			const message = error instanceof Error ? error.message : 'Search failed';
-			this.postMessage({ type: 'error', message });
+			const message = error instanceof Error ? error.message : "Search failed";
+			this.postMessage({ type: "error", message });
 		}
 	}
 
@@ -179,17 +213,21 @@ export class SearchPanel {
 					useRegex: tab.useRegex,
 					replace: tab.replace,
 				},
-				this.searchTokenSource.token
+				this.searchTokenSource.token,
 			);
-			this.postMessage({ type: 'replaced', count });
+			this.postMessage({ type: "replaced", count });
 			await this.runSearch(tab);
 		} catch (error) {
-			const message = error instanceof Error ? error.message : 'Replace failed';
-			this.postMessage({ type: 'error', message });
+			const message = error instanceof Error ? error.message : "Replace failed";
+			this.postMessage({ type: "error", message });
 		}
 	}
 
-	private async openMatch(file: string, line: number, column: number): Promise<void> {
+	private async openMatch(
+		file: string,
+		line: number,
+		column: number,
+	): Promise<void> {
 		const uri = vscode.Uri.file(file);
 		const document = await vscode.workspace.openTextDocument(uri);
 		const editor = await vscode.window.showTextDocument(document, {
@@ -199,7 +237,10 @@ export class SearchPanel {
 
 		const position = new vscode.Position(line - 1, column);
 		editor.selection = new vscode.Selection(position, position);
-		editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+		editor.revealRange(
+			new vscode.Range(position, position),
+			vscode.TextEditorRevealType.InCenter,
+		);
 	}
 
 	private async replaceMatch(
@@ -207,21 +248,24 @@ export class SearchPanel {
 		line: number,
 		column: number,
 		length: number,
-		replacement: string
+		replacement: string,
 	): Promise<void> {
 		const uri = vscode.Uri.file(file);
 		const edit = new vscode.WorkspaceEdit();
 		edit.replace(
 			uri,
 			new vscode.Range(line - 1, column, line - 1, column + length),
-			replacement
+			replacement,
 		);
 		await vscode.workspace.applyEdit(edit);
-		this.postMessage({ type: 'replaced', count: 1 });
+		this.postMessage({ type: "replaced", count: 1 });
 	}
 
 	private persistTab(tab: SearchTab): void {
-		this.tabs = [tab, ...this.tabs.filter((entry) => entry.id !== tab.id)].slice(0, MAX_TABS);
+		this.tabs = [
+			tab,
+			...this.tabs.filter((entry) => entry.id !== tab.id),
+		].slice(0, MAX_TABS);
 		this.activeTabId = tab.id;
 		void this.globalState.update(HISTORY_KEY, this.tabs);
 	}
@@ -235,11 +279,22 @@ export class SearchPanel {
 
 	private getHtml(): string {
 		const webview = this.panel.webview;
-		const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'search.css'));
-		const codiconsUri = webview.asWebviewUri(
-			vscode.Uri.joinPath(this.extensionUri, 'node_modules', '@vscode', 'codicons', 'dist', 'codicon.css')
+		const styleUri = webview.asWebviewUri(
+			vscode.Uri.joinPath(this.extensionUri, "media", "search.css"),
 		);
-		const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'search.js'));
+		const codiconsUri = webview.asWebviewUri(
+			vscode.Uri.joinPath(
+				this.extensionUri,
+				"node_modules",
+				"@vscode",
+				"codicons",
+				"dist",
+				"codicon.css",
+			),
+		);
+		const scriptUri = webview.asWebviewUri(
+			vscode.Uri.joinPath(this.extensionUri, "media", "search.js"),
+		);
 		const nonce = getNonce();
 
 		return `<!DOCTYPE html>
@@ -298,8 +353,9 @@ export class SearchPanel {
 }
 
 function getNonce(): string {
-	const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-	let nonce = '';
+	const chars =
+		"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+	let nonce = "";
 	for (let i = 0; i < 32; i++) {
 		nonce += chars.charAt(Math.floor(Math.random() * chars.length));
 	}
