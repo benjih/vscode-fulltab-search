@@ -1,18 +1,18 @@
-import * as vscode from "vscode";
-import { SearchEngine } from "./searchEngine";
-import type { ExtensionMessage, SearchTab, WebviewMessage } from "./types";
+import * as vscode from "vscode"
+import { SearchEngine } from "./searchEngine"
+import type { ExtensionMessage, SearchTab, WebviewMessage } from "./types"
 
-const VIEW_TYPE = "fullTabSearch.panel";
-const HISTORY_KEY = "fullTabSearch.history";
-const MAX_TABS = 12;
+const VIEW_TYPE = "fullTabSearch.panel"
+const HISTORY_KEY = "fullTabSearch.history"
+const MAX_TABS = 12
 
 export class SearchPanel {
-	private static currentPanel: SearchPanel | undefined;
-	private readonly panel: vscode.WebviewPanel;
-	private readonly engine = new SearchEngine();
-	private searchTokenSource: vscode.CancellationTokenSource | null = null;
-	private tabs: SearchTab[] = [];
-	private activeTabId: string | null = null;
+	private static currentPanel: SearchPanel | undefined
+	private readonly panel: vscode.WebviewPanel
+	private readonly engine = new SearchEngine()
+	private searchTokenSource: vscode.CancellationTokenSource | null = null
+	private tabs: SearchTab[] = []
+	private activeTabId: string | null = null
 
 	private constructor(
 		panel: vscode.WebviewPanel,
@@ -20,30 +20,30 @@ export class SearchPanel {
 		private readonly globalState: vscode.Memento,
 		disposables: vscode.Disposable[],
 	) {
-		this.panel = panel;
-		this.tabs = globalState.get<SearchTab[]>(HISTORY_KEY, []);
-		this.activeTabId = this.tabs[0]?.id ?? null;
+		this.panel = panel
+		this.tabs = globalState.get<SearchTab[]>(HISTORY_KEY, [])
+		this.activeTabId = this.tabs[0]?.id ?? null
 
-		this.panel.webview.html = this.getHtml();
+		this.panel.webview.html = this.getHtml()
 		this.panel.webview.onDidReceiveMessage(
 			(message) => void this.handleMessage(message as WebviewMessage),
 			undefined,
 			disposables,
-		);
+		)
 		this.panel.onDidDispose(
 			() => {
-				SearchPanel.currentPanel = undefined;
-				this.cancelSearch();
+				SearchPanel.currentPanel = undefined
+				this.cancelSearch()
 			},
 			null,
 			disposables,
-		);
+		)
 	}
 
 	static show(context: vscode.ExtensionContext): void {
 		if (SearchPanel.currentPanel) {
-			SearchPanel.currentPanel.panel.reveal(vscode.ViewColumn.One);
-			return;
+			SearchPanel.currentPanel.panel.reveal(vscode.ViewColumn.One)
+			return
 		}
 
 		const panel = vscode.window.createWebviewPanel(
@@ -64,18 +64,18 @@ export class SearchPanel {
 					),
 				],
 			},
-		);
+		)
 
 		SearchPanel.currentPanel = new SearchPanel(
 			panel,
 			context.extensionUri,
 			context.globalState,
 			context.subscriptions,
-		);
+		)
 	}
 
 	private postMessage(message: ExtensionMessage): void {
-		void this.panel.webview.postMessage(message);
+		void this.panel.webview.postMessage(message)
 	}
 
 	private async handleMessage(message: WebviewMessage): Promise<void> {
@@ -85,17 +85,17 @@ export class SearchPanel {
 					type: "init",
 					tabs: this.tabs,
 					activeTabId: this.activeTabId,
-				});
-				break;
+				})
+				break
 			case "search":
-				await this.runSearch(message.tab);
-				break;
+				await this.runSearch(message.tab)
+				break
 			case "cancel":
-				this.cancelSearch();
-				break;
+				this.cancelSearch()
+				break
 			case "openMatch":
-				await this.openMatch(message.file, message.line, message.column);
-				break;
+				await this.openMatch(message.file, message.line, message.column)
+				break
 			case "replaceMatch":
 				await this.replaceMatch(
 					message.file,
@@ -103,11 +103,11 @@ export class SearchPanel {
 					message.column,
 					message.length,
 					message.replacement,
-				);
-				break;
+				)
+				break
 			case "replaceAll":
-				await this.runReplaceAll(message.tab);
-				break;
+				await this.runReplaceAll(message.tab)
+				break
 			case "expandMatch":
 				this.expandMatch(
 					message.matchId,
@@ -115,8 +115,8 @@ export class SearchPanel {
 					message.direction,
 					message.anchorLine,
 					message.count,
-				);
-				break;
+				)
+				break
 		}
 	}
 
@@ -133,26 +133,26 @@ export class SearchPanel {
 				direction,
 				anchorLine,
 				count,
-			);
+			)
 			this.postMessage({
 				type: "expanded",
 				matchId,
 				direction,
 				lines,
 				hasMore,
-			});
+			})
 		} catch (error) {
 			const message =
-				error instanceof Error ? error.message : "Failed to load context";
-			this.postMessage({ type: "error", message });
+				error instanceof Error ? error.message : "Failed to load context"
+			this.postMessage({ type: "error", message })
 		}
 	}
 
 	private async runSearch(tab: SearchTab): Promise<void> {
-		this.persistTab(tab);
-		this.cancelSearch();
-		this.searchTokenSource = new vscode.CancellationTokenSource();
-		this.postMessage({ type: "searching", tabId: tab.id });
+		this.persistTab(tab)
+		this.cancelSearch()
+		this.searchTokenSource = new vscode.CancellationTokenSource()
+		this.postMessage({ type: "searching", tabId: tab.id })
 
 		try {
 			const results = await this.engine.search(
@@ -167,39 +167,39 @@ export class SearchPanel {
 					replace: tab.replace,
 				},
 				this.searchTokenSource.token,
-			);
+			)
 
-			const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+			const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
 			if (workspaceRoot) {
 				for (const fileResult of results.fileResults) {
 					fileResult.relativePath = vscode.workspace.asRelativePath(
 						fileResult.file,
-					);
+					)
 					fileResult.directory = fileResult.relativePath.includes("/")
 						? fileResult.relativePath.slice(
 								0,
 								fileResult.relativePath.lastIndexOf("/"),
 							)
-						: "";
+						: ""
 					fileResult.fileName =
-						fileResult.relativePath.split("/").pop() ?? fileResult.fileName;
+						fileResult.relativePath.split("/").pop() ?? fileResult.fileName
 					for (const match of fileResult.matches) {
-						match.relativePath = fileResult.relativePath;
+						match.relativePath = fileResult.relativePath
 					}
 				}
 			}
 
-			this.postMessage({ type: "results", results });
+			this.postMessage({ type: "results", results })
 		} catch (error) {
-			const message = error instanceof Error ? error.message : "Search failed";
-			this.postMessage({ type: "error", message });
+			const message = error instanceof Error ? error.message : "Search failed"
+			this.postMessage({ type: "error", message })
 		}
 	}
 
 	private async runReplaceAll(tab: SearchTab): Promise<void> {
-		this.persistTab(tab);
-		this.cancelSearch();
-		this.searchTokenSource = new vscode.CancellationTokenSource();
+		this.persistTab(tab)
+		this.cancelSearch()
+		this.searchTokenSource = new vscode.CancellationTokenSource()
 
 		try {
 			const count = await this.engine.replaceAll(
@@ -214,12 +214,12 @@ export class SearchPanel {
 					replace: tab.replace,
 				},
 				this.searchTokenSource.token,
-			);
-			this.postMessage({ type: "replaced", count });
-			await this.runSearch(tab);
+			)
+			this.postMessage({ type: "replaced", count })
+			await this.runSearch(tab)
 		} catch (error) {
-			const message = error instanceof Error ? error.message : "Replace failed";
-			this.postMessage({ type: "error", message });
+			const message = error instanceof Error ? error.message : "Replace failed"
+			this.postMessage({ type: "error", message })
 		}
 	}
 
@@ -228,19 +228,19 @@ export class SearchPanel {
 		line: number,
 		column: number,
 	): Promise<void> {
-		const uri = vscode.Uri.file(file);
-		const document = await vscode.workspace.openTextDocument(uri);
+		const uri = vscode.Uri.file(file)
+		const document = await vscode.workspace.openTextDocument(uri)
 		const editor = await vscode.window.showTextDocument(document, {
 			preview: false,
 			preserveFocus: false,
-		});
+		})
 
-		const position = new vscode.Position(line - 1, column);
-		editor.selection = new vscode.Selection(position, position);
+		const position = new vscode.Position(line - 1, column)
+		editor.selection = new vscode.Selection(position, position)
 		editor.revealRange(
 			new vscode.Range(position, position),
 			vscode.TextEditorRevealType.InCenter,
-		);
+		)
 	}
 
 	private async replaceMatch(
@@ -250,38 +250,38 @@ export class SearchPanel {
 		length: number,
 		replacement: string,
 	): Promise<void> {
-		const uri = vscode.Uri.file(file);
-		const edit = new vscode.WorkspaceEdit();
+		const uri = vscode.Uri.file(file)
+		const edit = new vscode.WorkspaceEdit()
 		edit.replace(
 			uri,
 			new vscode.Range(line - 1, column, line - 1, column + length),
 			replacement,
-		);
-		await vscode.workspace.applyEdit(edit);
-		this.postMessage({ type: "replaced", count: 1 });
+		)
+		await vscode.workspace.applyEdit(edit)
+		this.postMessage({ type: "replaced", count: 1 })
 	}
 
 	private persistTab(tab: SearchTab): void {
 		this.tabs = [
 			tab,
 			...this.tabs.filter((entry) => entry.id !== tab.id),
-		].slice(0, MAX_TABS);
-		this.activeTabId = tab.id;
-		void this.globalState.update(HISTORY_KEY, this.tabs);
+		].slice(0, MAX_TABS)
+		this.activeTabId = tab.id
+		void this.globalState.update(HISTORY_KEY, this.tabs)
 	}
 
 	private cancelSearch(): void {
-		this.engine.cancel();
-		this.searchTokenSource?.cancel();
-		this.searchTokenSource?.dispose();
-		this.searchTokenSource = null;
+		this.engine.cancel()
+		this.searchTokenSource?.cancel()
+		this.searchTokenSource?.dispose()
+		this.searchTokenSource = null
 	}
 
 	private getHtml(): string {
-		const webview = this.panel.webview;
+		const webview = this.panel.webview
 		const styleUri = webview.asWebviewUri(
 			vscode.Uri.joinPath(this.extensionUri, "media", "search.css"),
-		);
+		)
 		const codiconsUri = webview.asWebviewUri(
 			vscode.Uri.joinPath(
 				this.extensionUri,
@@ -291,11 +291,11 @@ export class SearchPanel {
 				"dist",
 				"codicon.css",
 			),
-		);
+		)
 		const scriptUri = webview.asWebviewUri(
 			vscode.Uri.joinPath(this.extensionUri, "media", "search.js"),
-		);
-		const nonce = getNonce();
+		)
+		const nonce = getNonce()
 
 		return `<!DOCTYPE html>
 <html lang="en">
@@ -348,16 +348,15 @@ export class SearchPanel {
 	</div>
 	<script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
-</html>`;
+</html>`
 	}
 }
 
 function getNonce(): string {
-	const chars =
-		"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-	let nonce = "";
+	const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+	let nonce = ""
 	for (let i = 0; i < 32; i++) {
-		nonce += chars.charAt(Math.floor(Math.random() * chars.length));
+		nonce += chars.charAt(Math.floor(Math.random() * chars.length))
 	}
-	return nonce;
+	return nonce
 }
