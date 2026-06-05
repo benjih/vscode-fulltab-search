@@ -10,7 +10,7 @@
 // opening files, replacing text) goes through the postMessage / onDidReceiveMessage
 // IPC bridge that VS Code provides for webviews.
 
-/** @typedef {{ id: string; pattern: string; include: string; exclude: string; caseSensitive: boolean; wholeWord: boolean; useRegex: boolean; replace: string }} SearchTab */
+/** @typedef {{ pattern: string; include: string; exclude: string; caseSensitive: boolean; wholeWord: boolean; useRegex: boolean; replace: string }} SearchState */
 /** @typedef {{ line: number; text: string }} ContextLine */
 /** @typedef {{ id: number; file: string; relativePath: string; line: number; column: number; lineText: string; matchStart: number; matchEnd: number; contextBefore: ContextLine[]; contextAfter: ContextLine[]; breadcrumb: string }} SearchMatch */
 /** @typedef {{ file: string; relativePath: string; directory: string; fileName: string; matches: SearchMatch[] }} FileResult */
@@ -21,10 +21,16 @@
 const vscode = acquireVsCodeApi()
 
 // Mutable UI state — all mutations go through the sync helpers below.
-/** @type {SearchTab[]} */
-let tabs = []
-/** @type {string | null} */
-let activeTabId = null
+/** @type {SearchState} */
+let searchState = {
+	pattern: "",
+	include: "",
+	exclude: "node_modules/**, *.lock",
+	caseSensitive: false,
+	wholeWord: false,
+	useRegex: false,
+	replace: "",
+}
 /** @type {SearchResults | null} */
 let currentResults = null
 /** @type {number} */
@@ -42,7 +48,6 @@ const EXPAND_STEP = 10
 /** @type {Map<number, ExpandedSection>} */
 const expandedSections = new Map()
 
-const tabBar = /** @type {HTMLElement} */ (document.getElementById("tabBar"))
 const patternInput = /** @type {HTMLInputElement} */ (
 	document.getElementById("patternInput")
 )
@@ -86,111 +91,32 @@ const replaceAllBtn = /** @type {HTMLButtonElement} */ (
 	document.getElementById("replaceAll")
 )
 
-function createTabId() {
-	return `tab-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+function syncInputsFromState() {
+	patternInput.value = searchState.pattern
+	includeInput.value = searchState.include
+	excludeInput.value = searchState.exclude
+	replaceInput.value = searchState.replace
+	caseToggle.classList.toggle("active", searchState.caseSensitive)
+	wordToggle.classList.toggle("active", searchState.wholeWord)
+	regexToggle.classList.toggle("active", searchState.useRegex)
 }
 
-/** @returns {SearchTab} */
-function createEmptyTab() {
-	return {
-		id: createTabId(),
-		pattern: "",
-		include: "",
-		exclude: "node_modules/**, *.lock",
-		caseSensitive: false,
-		wholeWord: false,
-		useRegex: false,
-		replace: "",
-	}
-}
-
-/** @returns {SearchTab} */
-function getActiveTab() {
-	const existing = tabs.find((tab) => tab.id === activeTabId)
-	if (existing) {
-		return existing
-	}
-
-	const tab = createEmptyTab()
-	tabs = [tab, ...tabs]
-	activeTabId = tab.id
-	return tab
-}
-
-function syncInputsFromTab() {
-	const tab = getActiveTab()
-	patternInput.value = tab.pattern
-	includeInput.value = tab.include
-	excludeInput.value = tab.exclude
-	replaceInput.value = tab.replace
-	caseToggle.classList.toggle("active", tab.caseSensitive)
-	wordToggle.classList.toggle("active", tab.wholeWord)
-	regexToggle.classList.toggle("active", tab.useRegex)
-	renderTabs()
-}
-
-function syncTabFromInputs() {
-	const tab = getActiveTab()
-	tab.pattern = patternInput.value
-	tab.include = includeInput.value
-	tab.exclude = excludeInput.value
-	tab.replace = replaceInput.value
-	tab.caseSensitive = caseToggle.classList.contains("active")
-	tab.wholeWord = wordToggle.classList.contains("active")
-	tab.useRegex = regexToggle.classList.contains("active")
-	renderTabs()
-}
-
-function renderTabs() {
-	tabBar.innerHTML = ""
-
-	for (const tab of tabs) {
-		const button = document.createElement("button")
-		button.className = `tab${tab.id === activeTabId ? " active" : ""}`
-		button.title = tab.pattern || "New search"
-
-		const label = document.createElement("span")
-		label.className = "tab-label"
-		label.textContent = tab.pattern || "New search"
-		button.appendChild(label)
-
-		button.addEventListener("click", () => {
-			syncTabFromInputs()
-			activeTabId = tab.id
-			syncInputsFromTab()
-			scheduleSearch()
-		})
-
-		tabBar.appendChild(button)
-	}
-
-	const addButton = document.createElement("button")
-	addButton.className = "tab-add"
-	addButton.textContent = "+"
-	addButton.title = "New search tab"
-	addButton.addEventListener("click", () => {
-		syncTabFromInputs()
-		const tab = createEmptyTab()
-		tabs = [tab, ...tabs].slice(0, 12)
-		activeTabId = tab.id
-		currentResults = null
-		activeMatchIndex = 0
-		syncInputsFromTab()
-		renderResults()
-		updateMatchCounter()
-		setStatus("New search tab")
-		patternInput.focus()
-	})
-	tabBar.appendChild(addButton)
+function syncStateFromInputs() {
+	searchState.pattern = patternInput.value
+	searchState.include = includeInput.value
+	searchState.exclude = excludeInput.value
+	searchState.replace = replaceInput.value
+	searchState.caseSensitive = caseToggle.classList.contains("active")
+	searchState.wholeWord = wordToggle.classList.contains("active")
+	searchState.useRegex = regexToggle.classList.contains("active")
 }
 
 // Debounces search requests so we don't flood the extension host on every keystroke.
 function scheduleSearch() {
-	syncTabFromInputs()
+	syncStateFromInputs()
 	clearTimeout(searchDebounce)
 	searchDebounce = setTimeout(() => {
-		const tab = getActiveTab()
-		vscode.postMessage({ type: "search", tab })
+		vscode.postMessage({ type: "search", state: searchState })
 	}, 250)
 }
 
@@ -602,7 +528,7 @@ patternInput.addEventListener("input", scheduleSearch)
 includeInput.addEventListener("input", scheduleSearch)
 excludeInput.addEventListener("input", scheduleSearch)
 
-replaceInput.addEventListener("input", syncTabFromInputs)
+replaceInput.addEventListener("input", syncStateFromInputs)
 
 for (const toggle of [caseToggle, wordToggle, regexToggle]) {
 	toggle.addEventListener("click", () => {
@@ -617,7 +543,6 @@ nextMatch.addEventListener("click", () => focusMatch(activeMatchIndex + 1))
 replaceOne.addEventListener("click", () => {
 	const matches = flattenMatches()
 	const match = matches[activeMatchIndex]
-	const tab = getActiveTab()
 	if (!match) {
 		return
 	}
@@ -628,20 +553,20 @@ replaceOne.addEventListener("click", () => {
 		line: match.line,
 		column: match.matchStart,
 		length: match.matchEnd - match.matchStart,
-		replacement: tab.replace,
+		replacement: searchState.replace,
 	})
 })
 
 replaceAllBtn.addEventListener("click", () => {
-	syncTabFromInputs()
-	vscode.postMessage({ type: "replaceAll", tab: getActiveTab() })
+	syncStateFromInputs()
+	vscode.postMessage({ type: "replaceAll", state: searchState })
 })
 
 document.addEventListener("keydown", (event) => {
 	if (event.key === "Enter" && document.activeElement === patternInput) {
 		clearTimeout(searchDebounce)
-		syncTabFromInputs()
-		vscode.postMessage({ type: "search", tab: getActiveTab() })
+		syncStateFromInputs()
+		vscode.postMessage({ type: "search", state: searchState })
 	}
 
 	if (event.key === "F4" || (event.key === "g" && event.ctrlKey)) {
@@ -656,10 +581,11 @@ window.addEventListener("message", (event) => {
 
 	switch (message.type) {
 		case "init":
-			tabs = message.tabs?.length ? message.tabs : [createEmptyTab()]
-			activeTabId = message.activeTabId ?? tabs[0].id
-			syncInputsFromTab()
-			if (getActiveTab().pattern.trim()) {
+			if (message.state) {
+				searchState = { ...searchState, ...message.state }
+			}
+			syncInputsFromState()
+			if (searchState.pattern.trim()) {
 				scheduleSearch()
 			} else {
 				renderResults()

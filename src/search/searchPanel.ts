@@ -1,18 +1,16 @@
 import * as vscode from "vscode"
 import { SearchEngine } from "./searchEngine"
-import type { ExtensionMessage, SearchTab, WebviewMessage } from "./types"
+import type { ExtensionMessage, SearchState, WebviewMessage } from "./types"
 
 const VIEW_TYPE = "fullTabSearch.panel"
-const HISTORY_KEY = "fullTabSearch.history"
-const MAX_TABS = 12
+const STATE_KEY = "fullTabSearch.state"
 
 export class SearchPanel {
 	private static currentPanel: SearchPanel | undefined
 	private readonly panel: vscode.WebviewPanel
 	private readonly engine = new SearchEngine()
 	private searchTokenSource: vscode.CancellationTokenSource | null = null
-	private tabs: SearchTab[] = []
-	private activeTabId: string | null = null
+	private lastState: SearchState | null = null
 
 	private constructor(
 		panel: vscode.WebviewPanel,
@@ -21,8 +19,7 @@ export class SearchPanel {
 		disposables: vscode.Disposable[],
 	) {
 		this.panel = panel
-		this.tabs = globalState.get<SearchTab[]>(HISTORY_KEY, [])
-		this.activeTabId = this.tabs[0]?.id ?? null
+		this.lastState = globalState.get<SearchState | null>(STATE_KEY, null)
 
 		this.panel.webview.html = this.getHtml()
 		this.panel.webview.onDidReceiveMessage(
@@ -83,12 +80,11 @@ export class SearchPanel {
 			case "ready":
 				this.postMessage({
 					type: "init",
-					tabs: this.tabs,
-					activeTabId: this.activeTabId,
+					state: this.lastState,
 				})
 				break
 			case "search":
-				await this.runSearch(message.tab)
+				await this.runSearch(message.state)
 				break
 			case "cancel":
 				this.cancelSearch()
@@ -106,7 +102,7 @@ export class SearchPanel {
 				)
 				break
 			case "replaceAll":
-				await this.runReplaceAll(message.tab)
+				await this.runReplaceAll(message.state)
 				break
 			case "expandMatch":
 				this.expandMatch(
@@ -148,23 +144,23 @@ export class SearchPanel {
 		}
 	}
 
-	private async runSearch(tab: SearchTab): Promise<void> {
-		this.persistTab(tab)
+	private async runSearch(state: SearchState): Promise<void> {
+		this.persistState(state)
 		this.cancelSearch()
 		this.searchTokenSource = new vscode.CancellationTokenSource()
-		this.postMessage({ type: "searching", tabId: tab.id })
+		this.postMessage({ type: "searching" })
 
 		try {
 			const results = await this.engine.search(
 				{
-					id: tab.id,
-					pattern: tab.pattern,
-					include: tab.include,
-					exclude: tab.exclude,
-					caseSensitive: tab.caseSensitive,
-					wholeWord: tab.wholeWord,
-					useRegex: tab.useRegex,
-					replace: tab.replace,
+					id: `search-${Date.now()}`,
+					pattern: state.pattern,
+					include: state.include,
+					exclude: state.exclude,
+					caseSensitive: state.caseSensitive,
+					wholeWord: state.wholeWord,
+					useRegex: state.useRegex,
+					replace: state.replace,
 				},
 				this.searchTokenSource.token,
 			)
@@ -196,27 +192,27 @@ export class SearchPanel {
 		}
 	}
 
-	private async runReplaceAll(tab: SearchTab): Promise<void> {
-		this.persistTab(tab)
+	private async runReplaceAll(state: SearchState): Promise<void> {
+		this.persistState(state)
 		this.cancelSearch()
 		this.searchTokenSource = new vscode.CancellationTokenSource()
 
 		try {
 			const count = await this.engine.replaceAll(
 				{
-					id: tab.id,
-					pattern: tab.pattern,
-					include: tab.include,
-					exclude: tab.exclude,
-					caseSensitive: tab.caseSensitive,
-					wholeWord: tab.wholeWord,
-					useRegex: tab.useRegex,
-					replace: tab.replace,
+					id: `replace-${Date.now()}`,
+					pattern: state.pattern,
+					include: state.include,
+					exclude: state.exclude,
+					caseSensitive: state.caseSensitive,
+					wholeWord: state.wholeWord,
+					useRegex: state.useRegex,
+					replace: state.replace,
 				},
 				this.searchTokenSource.token,
 			)
 			this.postMessage({ type: "replaced", count })
-			await this.runSearch(tab)
+			await this.runSearch(state)
 		} catch (error) {
 			const message = error instanceof Error ? error.message : "Replace failed"
 			this.postMessage({ type: "error", message })
@@ -261,13 +257,9 @@ export class SearchPanel {
 		this.postMessage({ type: "replaced", count: 1 })
 	}
 
-	private persistTab(tab: SearchTab): void {
-		this.tabs = [
-			tab,
-			...this.tabs.filter((entry) => entry.id !== tab.id),
-		].slice(0, MAX_TABS)
-		this.activeTabId = tab.id
-		void this.globalState.update(HISTORY_KEY, this.tabs)
+	private persistState(state: SearchState): void {
+		this.lastState = state
+		void this.globalState.update(STATE_KEY, state)
 	}
 
 	private cancelSearch(): void {
@@ -309,8 +301,6 @@ export class SearchPanel {
 </head>
 <body>
 	<div class="search-shell">
-		<div class="tab-bar" id="tabBar"></div>
-
 		<div class="search-controls">
 			<div class="search-row">
 				<input id="patternInput" class="search-input" type="text" placeholder="Search" spellcheck="false" />

@@ -43,8 +43,7 @@ export interface SearchResults {
 	truncated: boolean
 }
 
-export interface SearchTab {
-	id: string
+export interface SearchState {
 	pattern: string
 	include: string
 	exclude: string
@@ -55,7 +54,7 @@ export interface SearchTab {
 }
 
 export type WebviewMessage =
-	| { type: "search"; tab: SearchTab }
+	| { type: "search"; state: SearchState }
 	| { type: "cancel" }
 	| { type: "openMatch"; file: string; line: number; column: number }
 	| {
@@ -66,7 +65,7 @@ export type WebviewMessage =
 			length: number
 			replacement: string
 	  }
-	| { type: "replaceAll"; tab: SearchTab }
+	| { type: "replaceAll"; state: SearchState }
 	| {
 			type: "expandMatch"
 			matchId: number
@@ -78,8 +77,8 @@ export type WebviewMessage =
 	| { type: "ready" }
 
 export type ExtensionMessage =
-	| { type: "init"; tabs: SearchTab[]; activeTabId: string | null }
-	| { type: "searching"; tabId: string }
+	| { type: "init"; state: SearchState | null }
+	| { type: "searching" }
 	| { type: "results"; results: SearchResults }
 	| { type: "error"; message: string }
 	| { type: "replaced"; count: number }
