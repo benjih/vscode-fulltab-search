@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process"
 import * as fs from "node:fs"
+import * as fsPromises from "node:fs/promises"
 import { rgPath } from "@vscode/ripgrep"
 import * as vscode from "vscode"
 import {
@@ -46,11 +47,14 @@ export class SearchEngine {
 		const rootPath = workspaceFolder.uri.fsPath
 		const args = buildRipgrepArgs(query, rootPath)
 		const rawMatches = await this.runRipgrep(args, token)
-		const matches = rawMatches.map((match, index) => ({
-			...match,
-			id: index,
-			breadcrumb: this.getBreadcrumb(match.file, match.line),
-		}))
+		const fileCache = new Map<string, string[]>()
+		const matches = await Promise.all(
+			rawMatches.map(async (match, index) => ({
+				...match,
+				id: index,
+				breadcrumb: await this.getBreadcrumb(match.file, match.line, fileCache),
+			})),
+		)
 
 		return {
 			queryId: query.id,
@@ -190,10 +194,18 @@ export class SearchEngine {
 		})
 	}
 
-	private getBreadcrumb(filePath: string, matchLine: number): string {
+	private async getBreadcrumb(
+		filePath: string,
+		matchLine: number,
+		cache: Map<string, string[]>,
+	): Promise<string> {
 		try {
-			const content = fs.readFileSync(filePath, "utf8")
-			const lines = content.split(/\r?\n/)
+			let lines = cache.get(filePath)
+			if (!lines) {
+				const content = await fsPromises.readFile(filePath, "utf8")
+				lines = content.split(/\r?\n/)
+				cache.set(filePath, lines)
+			}
 			return buildBreadcrumb(lines, matchLine)
 		} catch {
 			return ""
