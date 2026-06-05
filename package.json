@@ -53,13 +53,11 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.16",
-		"@types/chai": "^4.3.20",
 		"@types/mocha": "^10.0.0",
 		"@types/node": "20.14.10",
 		"@types/vscode": "^1.85.0",
 		"@vscode/test-electron": "^2.4.0",
 		"@vscode/vsce": "^3.9.2",
-		"chai": "^4.5.0",
 		"glob": "^10.4.0",
 		"knip": "^6.15.0",
 		"mocha": "^10.7.0",

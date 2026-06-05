@@ -1,4 +1,4 @@
-import { expect } from "chai"
+import * as assert from "node:assert"
 import { By, EditorView, WebView } from "vscode-extension-tester"
 import { MARKER } from "../test/fixtureConstants"
 import {
@@ -37,7 +37,7 @@ describe("FullTab Search UI E2E", () => {
 
 	it("shows empty state before searching", async () => {
 		const empty = await view.findWebElement(By.css(".empty-state"))
-		expect(await empty.getText()).to.include("Enter a search query")
+		assert.ok((await empty.getText()).includes("Enter a search query"))
 	})
 
 	it("runs search from the pattern input and lists fixture files", async function () {
@@ -49,17 +49,17 @@ describe("FullTab Search UI E2E", () => {
 			(text) => resultCountFromStatus(text) >= 2,
 			35_000,
 		)
-		expect(resultCountFromStatus(status)).to.be.greaterThanOrEqual(2)
+		assert.ok(resultCountFromStatus(status) >= 2)
 
 		const counter = await view.findWebElement(By.id("matchCounter"))
-		expect(await counter.getText()).to.match(/^1\/\d+$/)
+		assert.match(await counter.getText(), /^1\/\d+$/)
 
 		const fileNames = await view.findWebElements(By.css(".file-name"))
 		const names = await Promise.all(
 			fileNames.map((element) => element.getText()),
 		)
-		expect(names).to.include("hello.ts")
-		expect(names).to.include("utils.ts")
+		assert.ok(names.includes("hello.ts"))
+		assert.ok(names.includes("utils.ts"))
 	})
 
 	it("shows no results for a non-matching query", async function () {
@@ -69,10 +69,10 @@ describe("FullTab Search UI E2E", () => {
 		const status = await waitForStatus(view, (text) =>
 			text.includes("0 results"),
 		)
-		expect(status).to.equal("0 results in 0 files")
+		assert.strictEqual(status, "0 results in 0 files")
 
 		const empty = await view.findWebElement(By.css(".empty-state"))
-		expect(await empty.getText()).to.equal("No results found")
+		assert.strictEqual(await empty.getText(), "No results found")
 	})
 
 	it("toggles match case from the webview toolbar", async function () {
@@ -93,6 +93,6 @@ describe("FullTab Search UI E2E", () => {
 			(text) => text.includes("0 results"),
 			35_000,
 		)
-		expect(caseStatus).to.equal("0 results in 0 files")
+		assert.strictEqual(caseStatus, "0 results in 0 files")
 	})
 })
