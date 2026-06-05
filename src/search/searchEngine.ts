@@ -8,7 +8,7 @@ import {
 	MAX_RESULTS,
 	parseRipgrepLine,
 } from "./ripgrepParser"
-import { buildBreadcrumb, extractSymbol, groupByFile } from "./searchUtils"
+import { buildBreadcrumb, groupByFile } from "./searchUtils"
 import type {
 	ContextLine,
 	SearchMatch,
@@ -194,6 +194,3 @@ export class SearchEngine {
 		}
 	}
 }
-
-// Re-export for tests that assert symbol extraction on lines
-export { extractSymbol }

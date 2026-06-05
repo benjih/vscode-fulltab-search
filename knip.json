@@ -5,13 +5,9 @@
 	"ignore": ["src/test/**", "src/ui-test/**"],
 	"ignoreDependencies": [
 		"@types/chai",
-		"@types/mocha",
-		"@types/vscode",
+		"@vscode/codicons",
 		"@vscode/test-electron",
-		"@vscode/vsce",
 		"chai",
-		"glob",
-		"mocha",
-		"vscode-extension-tester"
+		"glob"
 	]
 }
