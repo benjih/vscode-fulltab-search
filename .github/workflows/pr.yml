@@ -9,7 +9,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [lint, test, build]
+        target: [lint, test, build, test-ui]
     steps:
       - uses: actions/checkout@v5
 
@@ -17,4 +17,10 @@ jobs:
         with:
           enable-cache: true
 
-      - run: devbox run -- make ${{ matrix.target }}
+      - name: Run target
+        run: |
+          if [ "${{ matrix.target }}" = "test-ui" ]; then
+            devbox run -- env EXTENSIONS_FOLDER=.test-extensions EXTENSION_DEV_PATH="$GITHUB_WORKSPACE" xvfb-run -a make test-ui
+          else
+            devbox run -- make ${{ matrix.target }}
+          fi

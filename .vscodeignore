@@ -15,3 +15,8 @@ devbox.json
 devbox.lock
 .envrc
 Makefile
+test-resources/**
+.test-extensions/**
+vitest.config.ts
+src/ui-test/**
+src/test/**

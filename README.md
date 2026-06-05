@@ -79,12 +79,27 @@ The launch configuration runs the `compile` task first, which uses devbox to inv
 
 ### Lint and test
 
+The project uses a three-layer testing pyramid:
+
+| Layer | Runner | Location | Command |
+|-------|--------|----------|---------|
+| Unit | Vitest (Node, no VS Code API) | `src/test/unit/` | `make test-unit` |
+| Integration | Mocha + `@vscode/test-electron` | `src/test/suite/*.test.ts` | `make test-integration` |
+| E2E (API) | Same as integration | `src/test/suite/e2e.flow.test.ts` | `make test-integration` |
+| UI E2E | ExTester + WebDriver | `src/ui-test/*.ui.test.ts` | `make test-ui` |
+
 ```bash
-make lint             # type-check without emitting
-make test             # compile + run integration tests
+make lint                 # type-check without emitting
+make test-unit            # fast unit tests only
+make test-integration     # compile + integration + API E2E in Extension Host
+make test-ui              # compile + Selenium UI tests (needs display; CI uses xvfb)
+make test                 # unit + integration (API layers)
+npm run test:unit:watch   # unit tests in watch mode
 ```
 
-CI runs `make lint`, `make test`, and `make build` on pull requests.
+Integration and API E2E tests open a fixture workspace at `src/test/fixtures/sample-workspace/` (via `src/test/runTest.ts`). UI E2E uses the same fixture (opened via the simple file dialog), drives the webview with [vscode-extension-tester](https://github.com/redhat-developer/vscode-extension-tester), and requires `EXTENSIONS_FOLDER` plus `EXTENSION_DEV_PATH` (set automatically by `make test-ui`). CI runs `make lint`, `make test`, `make test-ui` (under xvfb), and `make build` on pull requests.
+
+**Future: webview unit tests** — Pure helpers in `media/search.js` (e.g. `escapeHtml`, `groupMatchesIntoSections`) can move to `media/searchLogic.js` and be covered by Vitest without launching VS Code.
 
 ## Project structure
 
@@ -94,8 +109,14 @@ src/
   search/
     searchPanel.ts      Webview panel and message handling
     searchEngine.ts     Ripgrep integration and replace logic
+    searchUtils.ts      Pure helpers (patterns, grouping, breadcrumbs)
+    ripgrepParser.ts    Ripgrep args and JSON line parsing
     types.ts            Shared message and result types
-  test/                 Integration tests (@vscode/test-electron)
+  test/
+    unit/               Vitest unit tests
+    suite/              Integration and API E2E tests (Mocha)
+    fixtures/           Sample workspace for integration/E2E
+  ui-test/              UI E2E tests (ExTester + WebDriver)
 media/
   search.js             Webview frontend
   search.css            Webview styles

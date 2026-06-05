@@ -1,0 +1,1 @@
+export const MARKER = '__FULLTAB_FIXTURE_MARKER__';

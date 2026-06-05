@@ -1,4 +1,6 @@
 out
 node_modules
 .vscode-test/
+test-resources/
+.test-extensions/
 *.vsix

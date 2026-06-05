@@ -1,23 +1,17 @@
 import { rgPath } from '@vscode/ripgrep';
 import { spawn } from 'child_process';
 import * as fs from 'fs';
-import * as path from 'path';
 import * as vscode from 'vscode';
-import { ContextLine, FileResult, SearchMatch, SearchQuery, SearchResults } from './types';
+import {
+	buildRipgrepArgs,
+	createRipgrepParseState,
+	MAX_RESULTS,
+	parseRipgrepLine,
+} from './ripgrepParser';
+import { buildBreadcrumb, extractSymbol, groupByFile } from './searchUtils';
+import { ContextLine, SearchMatch, SearchQuery, SearchResults } from './types';
 
-const MAX_RESULTS = 10_000;
-const CONTEXT_LINES = 3;
 const EXPAND_CHUNK = 10;
-
-interface RipgrepLine {
-	type: 'match' | 'context' | 'begin' | 'end' | 'summary';
-	data?: {
-		path?: { text: string };
-		lines?: { text: string };
-		line_number?: number;
-		submatches?: Array<{ start: number; end: number; match: { text: string } }>;
-	};
-}
 
 export class SearchEngine {
 	private activeProcess: ReturnType<typeof spawn> | null = null;
@@ -42,7 +36,7 @@ export class SearchEngine {
 		}
 
 		const rootPath = workspaceFolder.uri.fsPath;
-		const args = this.buildArgs(query, rootPath);
+		const args = buildRipgrepArgs(query, rootPath);
 		const rawMatches = await this.runRipgrep(args, token);
 		const matches = rawMatches.map((match, index) => ({
 			...match,
@@ -124,51 +118,12 @@ export class SearchEngine {
 		return lines;
 	}
 
-	private buildArgs(query: SearchQuery, rootPath: string): string[] {
-		const args = [
-			'--json',
-			'--line-number',
-			'--no-heading',
-			`--max-count=${MAX_RESULTS}`,
-			`-C${CONTEXT_LINES}`,
-		];
-
-		if (query.caseSensitive) {
-			args.push('--case-sensitive');
-		} else {
-			args.push('--ignore-case');
-		}
-
-		if (query.wholeWord) {
-			args.push('--word-regexp');
-		}
-
-		if (query.useRegex) {
-			args.push('-e', query.pattern);
-		} else {
-			args.push('-F', query.pattern);
-		}
-
-		for (const pattern of splitPatterns(query.include)) {
-			args.push('-g', pattern);
-		}
-
-		for (const pattern of splitPatterns(query.exclude)) {
-			args.push('-g', `!${pattern}`);
-		}
-
-		args.push(rootPath);
-		return args;
-	}
-
 	private runRipgrep(
 		args: string[],
 		token: vscode.CancellationToken
 	): Promise<Omit<SearchMatch, 'id' | 'breadcrumb'>[]> {
 		return new Promise((resolve, reject) => {
-			const matches: Omit<SearchMatch, 'id' | 'breadcrumb'>[] = [];
-			let pendingBefore: ContextLine[] = [];
-			let currentMatch: Omit<SearchMatch, 'id' | 'breadcrumb'> | null = null;
+			const state = createRipgrepParseState();
 			let stderr = '';
 
 			const child = spawn(rgPath, args, { windowsHide: true });
@@ -180,69 +135,9 @@ export class SearchEngine {
 
 			child.stdout.on('data', (chunk: Buffer) => {
 				for (const line of chunk.toString('utf8').split('\n')) {
-					if (!line.trim()) {
-						continue;
-					}
+					parseRipgrepLine(line, state);
 
-					let parsed: RipgrepLine;
-					try {
-						parsed = JSON.parse(line) as RipgrepLine;
-					} catch {
-						continue;
-					}
-
-					switch (parsed.type) {
-						case 'begin':
-							pendingBefore = [];
-							currentMatch = null;
-							break;
-						case 'context':
-							if (parsed.data?.lines?.text) {
-								const contextLine: ContextLine = {
-									line: parsed.data.line_number ?? 0,
-									text: parsed.data.lines.text.replace(/\r?\n$/, ''),
-								};
-								if (currentMatch) {
-									currentMatch.contextAfter.push(contextLine);
-								} else {
-									pendingBefore.push(contextLine);
-								}
-							}
-							break;
-						case 'match':
-							if (parsed.data?.path?.text && parsed.data.lines?.text) {
-								const submatch = parsed.data.submatches?.[0];
-								if (!submatch) {
-									break;
-								}
-
-								const lineText = parsed.data.lines.text.replace(/\r?\n$/, '');
-								const contextBefore = currentMatch
-									? [...currentMatch.contextAfter]
-									: [...pendingBefore];
-								const match: Omit<SearchMatch, 'id' | 'breadcrumb'> = {
-									file: parsed.data.path.text,
-									relativePath: parsed.data.path.text,
-									line: parsed.data.line_number ?? 1,
-									column: submatch.start,
-									lineText,
-									matchStart: submatch.start,
-									matchEnd: submatch.end,
-									contextBefore,
-									contextAfter: [],
-								};
-								matches.push(match);
-								currentMatch = match;
-								pendingBefore = [];
-							}
-							break;
-						case 'end':
-							pendingBefore = [];
-							currentMatch = null;
-							break;
-					}
-
-					if (matches.length >= MAX_RESULTS) {
+					if (state.matches.length >= MAX_RESULTS) {
 						child.kill();
 					}
 				}
@@ -263,7 +158,7 @@ export class SearchEngine {
 				this.activeProcess = null;
 
 				if (token.isCancellationRequested) {
-					resolve(matches);
+					resolve(state.matches);
 					return;
 				}
 
@@ -272,7 +167,7 @@ export class SearchEngine {
 					return;
 				}
 
-				resolve(matches);
+				resolve(state.matches);
 			});
 		});
 	}
@@ -281,75 +176,12 @@ export class SearchEngine {
 		try {
 			const content = fs.readFileSync(filePath, 'utf8');
 			const lines = content.split(/\r?\n/);
-			const parts: string[] = [];
-
-			for (let i = matchLine - 2; i >= 0 && parts.length < 4; i--) {
-				const line = lines[i];
-				const symbol = extractSymbol(line);
-				if (symbol) {
-					parts.unshift(symbol);
-				}
-			}
-
-			return parts.join(' › ');
+			return buildBreadcrumb(lines, matchLine);
 		} catch {
 			return '';
 		}
 	}
 }
 
-function splitPatterns(value: string): string[] {
-	return value
-		.split(',')
-		.map((part) => part.trim())
-		.filter(Boolean);
-}
-
-function extractSymbol(line: string): string | null {
-	const patterns = [
-		/^\s*(?:pub\s+)?impl(?:<[^>]+>)?\s+(?:\w+::)*(\w+)/,
-		/^\s*(?:pub\s+)?(?:async\s+)?fn\s+(\w+)/,
-		/^\s*(?:pub\s+)?(?:struct|enum|trait|mod)\s+(\w+)/,
-		/^\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s*\*?\s+(\w+)/,
-		/^\s*(?:export\s+)?(?:abstract\s+)?class\s+(\w+)/,
-		/^\s*(?:export\s+)?(?:interface|type)\s+(\w+)/,
-	];
-
-	for (const pattern of patterns) {
-		const result = pattern.exec(line);
-		if (result) {
-			const keyword = line.trim().split(/\s+/)[0]?.replace('pub', '').replace('export', '') || '';
-			if (keyword === 'impl') {
-				return `impl ${result[1]}`;
-			}
-			if (keyword === 'fn' || keyword === 'function' || keyword === 'async') {
-				return `fn ${result[1]}`;
-			}
-			return result[1];
-		}
-	}
-
-	return null;
-}
-
-function groupByFile(matches: SearchMatch[], workspaceRoot: string): FileResult[] {
-	const byFile = new Map<string, SearchMatch[]>();
-
-	for (const match of matches) {
-		const existing = byFile.get(match.file) ?? [];
-		existing.push(match);
-		byFile.set(match.file, existing);
-	}
-
-	return [...byFile.entries()].map(([file, fileMatches]) => {
-		const relativePath = path.relative(workspaceRoot, file);
-		const directory = path.dirname(relativePath);
-		return {
-			file,
-			relativePath,
-			directory: directory === '.' ? '' : directory,
-			fileName: path.basename(file),
-			matches: fileMatches,
-		};
-	});
-}
+// Re-export for tests that assert symbol extraction on lines
+export { extractSymbol };

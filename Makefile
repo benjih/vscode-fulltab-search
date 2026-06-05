@@ -1,4 +1,4 @@
-.PHONY: install lint test build package
+.PHONY: install lint test test-unit test-integration test-ui build package
 
 install:
 	npm install
@@ -6,8 +6,16 @@ install:
 lint: install
 	npm run lint
 
-test: build
-	npm test
+test: test-unit test-integration
+
+test-unit: install
+	npm run test:unit
+
+test-integration: build
+	npm run test:integration
+
+test-ui: build
+	EXTENSIONS_FOLDER=.test-extensions EXTENSION_DEV_PATH=$(CURDIR) npm run test:ui
 
 build: install
 	npm run compile
