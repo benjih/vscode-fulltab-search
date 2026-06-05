@@ -36,7 +36,7 @@
 	"scripts": {
 		"compile": "tsc -p ./",
 		"watch": "tsc -watch -p ./",
-		"lint": "tsc --noEmit -p ./ && biome check . --fix",
+		"lint": "tsc --noEmit -p ./ && biome check . --fix && knip",
 		"test": "npm run test:unit && npm run test:integration",
 		"test:unit": "vitest run",
 		"test:unit:watch": "vitest",
@@ -59,6 +59,7 @@
 		"@vscode/vsce": "^3.9.2",
 		"chai": "^4.5.0",
 		"glob": "^10.4.0",
+		"knip": "^6.15.0",
 		"mocha": "^10.7.0",
 		"typescript": "6.0.3",
 		"vitest": "^3.2.4",
