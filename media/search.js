@@ -225,6 +225,82 @@ function getLastLineNumber(match) {
 	return match.line;
 }
 
+/** @param {SearchMatch} prev @param {SearchMatch} curr */
+function shouldMergeMatches(prev, curr) {
+	const prevEffective = getEffectiveMatch(prev).match;
+	const currEffective = getEffectiveMatch(curr).match;
+	return getFirstLineNumber(currEffective) <= getLastLineNumber(prevEffective) + 1;
+}
+
+/** @param {SearchMatch[]} matches */
+function groupMatchesIntoSections(matches) {
+	/** @type {SearchMatch[][]} */
+	const sections = [];
+	/** @type {SearchMatch[]} */
+	let current = [];
+
+	for (const match of matches) {
+		if (current.length === 0) {
+			current.push(match);
+			continue;
+		}
+
+		const prev = current[current.length - 1];
+		if (shouldMergeMatches(prev, match)) {
+			current.push(match);
+		} else {
+			sections.push(current);
+			current = [match];
+		}
+	}
+
+	if (current.length > 0) {
+		sections.push(current);
+	}
+
+	return sections;
+}
+
+/** @param {SearchMatch[]} matches */
+function collectSectionLines(matches) {
+	/** @type {Map<number, { lineNumber: number; text: string; match: SearchMatch | null }>} */
+	const byLine = new Map();
+
+	for (const match of matches) {
+		const { match: effective } = getEffectiveMatch(match);
+
+		for (const contextLine of effective.contextBefore) {
+			if (!byLine.has(contextLine.line)) {
+				byLine.set(contextLine.line, {
+					lineNumber: contextLine.line,
+					text: contextLine.text,
+					match: null,
+				});
+			}
+		}
+
+		if (!byLine.has(effective.line)) {
+			byLine.set(effective.line, {
+				lineNumber: effective.line,
+				text: effective.lineText,
+				match,
+			});
+		}
+
+		for (const contextLine of effective.contextAfter) {
+			if (!byLine.has(contextLine.line)) {
+				byLine.set(contextLine.line, {
+					lineNumber: contextLine.line,
+					text: contextLine.text,
+					match: null,
+				});
+			}
+		}
+	}
+
+	return [...byLine.values()].sort((a, b) => a.lineNumber - b.lineNumber);
+}
+
 /** @param {number} fromLine @param {number} toLine */
 function renderSectionGap(fromLine, toLine) {
 	const hidden = toLine - fromLine - 1;
@@ -310,50 +386,42 @@ function renderExpandButton(direction, match) {
 	return button;
 }
 
-/** @param {SearchMatch} match @param {boolean} isActive */
-function renderMatchBlock(match, isActive) {
-	const { match: effectiveMatch } = getEffectiveMatch(match);
+/** @param {SearchMatch[]} matches */
+function renderMatchSection(matches) {
+	const firstMatch = matches[0];
+	const lastMatch = matches[matches.length - 1];
 	const block = document.createElement('div');
 	block.className = 'match-block';
-	block.dataset.matchId = String(match.id);
+	block.dataset.matchId = String(firstMatch.id);
 
-	const expandBefore = renderExpandButton('before', match);
+	const expandBefore = renderExpandButton('before', firstMatch);
 	if (expandBefore) {
 		block.appendChild(expandBefore);
 	}
 
-	const lines = [];
-
-	for (const contextLine of effectiveMatch.contextBefore) {
-		lines.push({ lineNumber: contextLine.line, text: contextLine.text, isMatch: false, isActive: false });
-	}
-
-	lines.push({
-		lineNumber: effectiveMatch.line,
-		text: effectiveMatch.lineText,
-		isMatch: true,
-		isActive,
-	});
-
-	for (const contextLine of effectiveMatch.contextAfter) {
-		lines.push({ lineNumber: contextLine.line, text: contextLine.text, isMatch: false, isActive: false });
-	}
-
+	const lines = collectSectionLines(matches);
 	const snippet = document.createElement('div');
 	snippet.className = 'snippet';
 
 	for (const entry of lines) {
+		const match = entry.match;
+		const isActive = match != null && match.id === activeMatchIndex;
 		const row = document.createElement('div');
-		row.className = `snippet-line${entry.isMatch && isActive ? ' active' : ''}`;
+		row.className = `snippet-line${isActive ? ' active' : ''}`;
 
 		const lineNumber = document.createElement('span');
 		lineNumber.className = 'line-number';
-		lineNumber.textContent = entry.lineNumber != null ? String(entry.lineNumber) : '';
+		lineNumber.textContent = String(entry.lineNumber);
 
 		const content = document.createElement('span');
 		content.className = 'line-content';
-		if (entry.isMatch) {
-			content.innerHTML = renderLineContent(entry.text, match.matchStart, match.matchEnd, isActive);
+		if (match) {
+			content.innerHTML = renderLineContent(
+				entry.text,
+				match.matchStart,
+				match.matchEnd,
+				isActive
+			);
 		} else {
 			content.textContent = entry.text;
 		}
@@ -361,7 +429,7 @@ function renderMatchBlock(match, isActive) {
 		row.appendChild(lineNumber);
 		row.appendChild(content);
 
-		if (entry.isMatch) {
+		if (match) {
 			row.addEventListener('click', () => {
 				activeMatchIndex = match.id;
 				updateMatchCounter();
@@ -380,15 +448,15 @@ function renderMatchBlock(match, isActive) {
 
 	block.appendChild(snippet);
 
-	const expandAfter = renderExpandButton('after', match);
+	const expandAfter = renderExpandButton('after', lastMatch);
 	if (expandAfter) {
 		block.appendChild(expandAfter);
 	}
 
-	if (match.breadcrumb) {
+	if (firstMatch.breadcrumb) {
 		const meta = document.createElement('div');
 		meta.className = 'match-meta';
-		meta.textContent = match.breadcrumb;
+		meta.textContent = firstMatch.breadcrumb;
 		block.appendChild(meta);
 	}
 
@@ -453,18 +521,21 @@ function renderResults() {
 		header.appendChild(openButton);
 		group.appendChild(header);
 
-		for (let i = 0; i < fileResult.matches.length; i++) {
-			const match = fileResult.matches[i];
+		const sections = groupMatchesIntoSections(fileResult.matches);
+		for (let i = 0; i < sections.length; i++) {
 			if (i > 0) {
-				const prev = fileResult.matches[i - 1];
-				const prevEffective = getEffectiveMatch(prev).match;
-				const currEffective = getEffectiveMatch(match).match;
-				const gap = renderSectionGap(getLastLineNumber(prevEffective), getFirstLineNumber(currEffective));
+				const prevSection = sections[i - 1];
+				const currSection = sections[i];
+				const prevLast = getLastLineNumber(
+					getEffectiveMatch(prevSection[prevSection.length - 1]).match
+				);
+				const currFirst = getFirstLineNumber(getEffectiveMatch(currSection[0]).match);
+				const gap = renderSectionGap(prevLast, currFirst);
 				if (gap) {
 					group.appendChild(gap);
 				}
 			}
-			group.appendChild(renderMatchBlock(match, match.id === activeMatchIndex));
+			group.appendChild(renderMatchSection(sections[i]));
 		}
 
 		resultsEl.appendChild(group);
