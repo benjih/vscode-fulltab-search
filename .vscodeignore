@@ -9,6 +9,7 @@ vsc-extension-quickstart.md
 **/*.map
 **/*.ts
 .devcontainer/**
+.devbox/**
 .github/**
 devbox.json
 devbox.lock

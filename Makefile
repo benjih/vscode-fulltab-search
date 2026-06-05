@@ -1,4 +1,4 @@
-.PHONY: install lint test build
+.PHONY: install lint test build package
 
 install:
 	npm install
@@ -11,3 +11,6 @@ test: build
 
 build: install
 	npm run compile
+
+package: build
+	npm run package
