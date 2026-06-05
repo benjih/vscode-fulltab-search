@@ -2,9 +2,9 @@ import { splitPatterns } from "./searchUtils"
 import type { ContextLine, SearchMatch, SearchQuery } from "./types"
 
 export const MAX_RESULTS = 10_000
-export const CONTEXT_LINES = 3
+const CONTEXT_LINES = 3
 
-export interface RipgrepLine {
+interface RipgrepLine {
 	type: "match" | "context" | "begin" | "end" | "summary"
 	data?: {
 		path?: { text: string }
@@ -14,7 +14,7 @@ export interface RipgrepLine {
 	}
 }
 
-export type RawSearchMatch = Omit<SearchMatch, "id" | "breadcrumb">
+type RawSearchMatch = Omit<SearchMatch, "id" | "breadcrumb">
 
 export interface RipgrepParseState {
 	matches: RawSearchMatch[]
