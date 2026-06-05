@@ -49,7 +49,10 @@ export class SearchPanel {
 			{
 				enableScripts: true,
 				retainContextWhenHidden: true,
-				localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'media')],
+				localResourceRoots: [
+					vscode.Uri.joinPath(context.extensionUri, 'media'),
+					vscode.Uri.joinPath(context.extensionUri, 'node_modules', '@vscode', 'codicons', 'dist'),
+				],
 			}
 		);
 
@@ -233,6 +236,9 @@ export class SearchPanel {
 	private getHtml(): string {
 		const webview = this.panel.webview;
 		const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'search.css'));
+		const codiconsUri = webview.asWebviewUri(
+			vscode.Uri.joinPath(this.extensionUri, 'node_modules', '@vscode', 'codicons', 'dist', 'codicon.css')
+		);
 		const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'search.js'));
 		const nonce = getNonce();
 
@@ -240,9 +246,10 @@ export class SearchPanel {
 <html lang="en">
 <head>
 	<meta charset="UTF-8">
-	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; font-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<link href="${styleUri}" rel="stylesheet">
+	<link href="${codiconsUri}" rel="stylesheet">
 	<title>FullTab Search</title>
 </head>
 <body>

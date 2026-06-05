@@ -293,10 +293,16 @@ function renderExpandButton(direction, match) {
 	const button = document.createElement('button');
 	button.type = 'button';
 	button.className = `expand-context expand-${direction}`;
-	button.textContent =
+	button.title =
 		direction === 'before'
 			? `Show ${EXPAND_STEP} more lines above`
 			: `Show ${EXPAND_STEP} more lines below`;
+	button.setAttribute('aria-label', button.title);
+
+	const icon = document.createElement('span');
+	icon.className = `codicon codicon-chevron-${direction === 'before' ? 'up' : 'down'}`;
+	button.appendChild(icon);
+
 	button.addEventListener('click', (event) => {
 		event.stopPropagation();
 		requestExpand(match, direction);

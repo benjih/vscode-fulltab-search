@@ -30,6 +30,7 @@
     "test": "node ./out/test/runTest.js"
   },
   "dependencies": {
+    "@vscode/codicons": "^0.0.45",
     "@vscode/ripgrep": "^1.15.14"
   },
   "devDependencies": {
