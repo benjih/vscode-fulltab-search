@@ -21,7 +21,9 @@
 		"virtualWorkspaces": true
 	},
 	"activationEvents": [
-		"onCommand:fullTabSearch.open"
+		"onCommand:fullTabSearch.open",
+		"onCommand:fullTabSearch.getDebugMetrics",
+		"onCommand:fullTabSearch.clearDebugMetrics"
 	],
 	"main": "./out/extension.js",
 	"contributes": {

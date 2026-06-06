@@ -3,5 +3,6 @@
 	"extensions.ignoreRecommendations": true,
 	"window.restoreWindows": "none",
 	"security.workspace.trust.enabled": false,
-	"security.workspace.trust.startupPrompt": "never"
+	"security.workspace.trust.startupPrompt": "never",
+	"fullTabSearch.debug": true
 }
