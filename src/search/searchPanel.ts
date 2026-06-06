@@ -124,6 +124,13 @@ export class SearchPanel {
 					message.count,
 				)
 				break
+			case "tokenizeContext":
+				await this.handleTokenizeContext(
+					message.matchId,
+					message.file,
+					message.lines,
+				)
+				break
 		}
 	}
 
@@ -240,16 +247,11 @@ export class SearchPanel {
 			const fileTimer = createTimer("runSearch.tokenize.file")
 			const lineMap = new Map<number, string>()
 			for (const match of fileResult.matches) {
-				for (const ctx of match.contextBefore) lineMap.set(ctx.line, ctx.text)
 				lineMap.set(match.line, match.lineText)
-				for (const ctx of match.contextAfter) lineMap.set(ctx.line, ctx.text)
 			}
 
-			// Ripgrep line numbers are 1-indexed; tokenizer uses 0-indexed file positions.
 			const sortedEntries = [...lineMap.entries()].sort(([a], [b]) => a - b)
 
-			// Split into contiguous groups so each group gets its own grammar state
-			// built from the actual file (not from a preceding group at a different depth).
 			const groups: Array<{ startLine: number; lines: string[] }> = []
 			let groupStart = 0
 			for (let i = 1; i <= sortedEntries.length; i++) {
@@ -259,14 +261,13 @@ export class SearchPanel {
 				if (isEnd || hasGap) {
 					const slice = sortedEntries.slice(groupStart, i)
 					groups.push({
-						startLine: slice[0][0] - 1, // convert to 0-indexed
+						startLine: slice[0][0] - 1,
 						lines: slice.map(([, text]) => text),
 					})
 					groupStart = i
 				}
 			}
 
-			// tokenizeFileGroups keys results by 0-indexed line number
 			const tokensByLine = await this.tokenizer.tokenizeFileGroups(
 				groups,
 				fileResult.file,
@@ -274,12 +275,7 @@ export class SearchPanel {
 
 			for (const match of fileResult.matches) {
 				match.tokens = tokensByLine.get(match.line - 1)
-				for (const ctx of match.contextBefore) {
-					ctx.tokens = tokensByLine.get(ctx.line - 1)
-				}
-				for (const ctx of match.contextAfter) {
-					ctx.tokens = tokensByLine.get(ctx.line - 1)
-				}
+				// Context line tokens are loaded lazily via tokenizeContext
 			}
 
 			fileTimer.end({
@@ -287,6 +283,41 @@ export class SearchPanel {
 				matches: fileResult.matches.length,
 			})
 		}
+	}
+
+	private async handleTokenizeContext(
+		matchId: number,
+		file: string,
+		lines: Array<{ line: number; text: string }>,
+	): Promise<void> {
+		if (lines.length === 0) return
+
+		const groups: Array<{ startLine: number; lines: string[] }> = []
+		let groupStart = 0
+		for (let i = 1; i <= lines.length; i++) {
+			const isEnd = i === lines.length
+			const hasGap = !isEnd && lines[i].line > lines[i - 1].line + 1
+			if (isEnd || hasGap) {
+				const slice = lines.slice(groupStart, i)
+				groups.push({
+					startLine: slice[0].line - 1,
+					lines: slice.map((l) => l.text),
+				})
+				groupStart = i
+			}
+		}
+
+		const tokensByLine = await this.tokenizer.tokenizeFileGroups(groups, file)
+
+		this.postMessage({
+			type: "contextTokens",
+			matchId,
+			file,
+			tokensByLine: [...tokensByLine.entries()].map(([line0, tokens]) => ({
+				line: line0 + 1,
+				tokens,
+			})),
+		})
 	}
 
 	private async runReplaceAll(state: SearchState): Promise<void> {
