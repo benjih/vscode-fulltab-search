@@ -1,6 +1,7 @@
 import * as assert from "node:assert"
 import { By, EditorView, WebView } from "vscode-extension-tester"
 import { MARKER } from "../test/fixtureConstants"
+import { clearPerfMetricsFile, waitForPerfMetric } from "../test/perfHelpers"
 import {
 	dismissBlockingDialogs,
 	ensureFixtureWorkspaceOpen,
@@ -8,6 +9,8 @@ import {
 	setPatternAndSearch,
 	waitForStatus,
 } from "./uiTestHelpers"
+
+const RUN_SEARCH_BUDGET_MS = 2_000
 
 function resultCountFromStatus(status: string): number {
 	const match = status.match(/(\d+)\+? results/)
@@ -19,6 +22,7 @@ describe("FullTab Search UI E2E", () => {
 
 	before(async function () {
 		this.timeout(90_000)
+		clearPerfMetricsFile()
 		await ensureFixtureWorkspaceOpen()
 		await openFullTabSearchPanel()
 
@@ -94,5 +98,23 @@ describe("FullTab Search UI E2E", () => {
 			35_000,
 		)
 		assert.strictEqual(caseStatus, "0 results in 0 files")
+	})
+
+	it("records runSearch perf metrics to the test perf file", async function () {
+		this.timeout(45_000)
+		clearPerfMetricsFile()
+		await setPatternAndSearch(view, MARKER)
+		await waitForStatus(
+			view,
+			(text) => resultCountFromStatus(text) >= 2,
+			35_000,
+		)
+
+		const runSearchMetric = await waitForPerfMetric("runSearch", 10_000)
+		assert.strictEqual(runSearchMetric.details?.query, MARKER)
+		assert.ok(
+			runSearchMetric.durationMs < RUN_SEARCH_BUDGET_MS,
+			`runSearch took ${runSearchMetric.durationMs.toFixed(1)}ms (budget ${RUN_SEARCH_BUDGET_MS}ms)`,
+		)
 	})
 })

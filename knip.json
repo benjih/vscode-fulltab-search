@@ -1,7 +1,12 @@
 {
 	"$schema": "https://unpkg.com/knip@6/schema.json",
-	"entry": ["src/extension.ts"],
+	"entry": [
+		"src/extension.ts",
+		"src/test/runTest.ts",
+		"src/test/suite/**/*.test.ts",
+		"src/ui-test/**/*.ui.test.ts"
+	],
 	"project": ["src/**/*.ts"],
 	"ignore": ["src/test/**", "src/ui-test/**"],
-	"ignoreDependencies": ["@vscode/codicons", "@vscode/test-electron", "glob"]
+	"ignoreDependencies": ["@vscode/codicons", "glob"]
 }

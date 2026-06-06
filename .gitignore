@@ -3,4 +3,5 @@ node_modules
 .vscode-test/
 test-resources/
 .test-extensions/
+**/.fulltab-perf.ndjson
 *.vsix
