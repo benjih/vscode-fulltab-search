@@ -31,7 +31,17 @@
 				"title": "FullTab Search: Open Project Search",
 				"icon": "$(search)"
 			}
-		]
+		],
+		"configuration": {
+			"title": "FullTab Search",
+			"properties": {
+				"fullTabSearch.debug": {
+					"type": "boolean",
+					"default": false,
+					"description": "Log performance metrics to the FullTab Search output channel."
+				}
+			}
+		}
 	},
 	"scripts": {
 		"compile": "tsc -p ./",

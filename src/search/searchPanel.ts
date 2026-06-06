@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto"
 import * as vscode from "vscode"
+import { createTimer, searchQueryDetails } from "../debug/metrics"
 import { SyntaxTokenizer } from "../syntax/tokenizer"
 import { SearchEngine } from "./searchEngine"
 import type {
@@ -133,6 +134,7 @@ export class SearchPanel {
 		anchorLine: number,
 		count: number,
 	): Promise<void> {
+		const totalTimer = createTimer("expandMatch", { direction })
 		try {
 			const { lines, hasMore } = this.engine.expandContext(
 				file,
@@ -140,10 +142,12 @@ export class SearchPanel {
 				anchorLine,
 				count,
 			)
+			const tokenTimer = createTimer("expandMatch.tokenize")
 			const tokenSpans = await this.tokenizer.tokenizeLines(
 				lines.map((l) => l.text),
 				file,
 			)
+			tokenTimer.end({ lines: lines.length })
 			const tokenizedLines: ContextLine[] = lines.map((l, i) => ({
 				...l,
 				tokens: tokenSpans[i],
@@ -155,7 +159,9 @@ export class SearchPanel {
 				lines: tokenizedLines,
 				hasMore,
 			})
+			totalTimer.end({ lines: lines.length })
 		} catch (error) {
+			totalTimer.end({ error: true })
 			const message =
 				error instanceof Error ? error.message : "Failed to load context"
 			this.postMessage({ type: "error", message })
@@ -167,8 +173,11 @@ export class SearchPanel {
 		this.cancelSearch()
 		this.searchTokenSource = new vscode.CancellationTokenSource()
 		this.postMessage({ type: "searching" })
+		const queryDetails = searchQueryDetails(state)
+		const totalTimer = createTimer("runSearch", queryDetails)
 
 		try {
+			const engineTimer = createTimer("runSearch.engine", queryDetails)
 			const results = await this.engine.search(
 				{
 					id: `search-${Date.now()}`,
@@ -182,7 +191,12 @@ export class SearchPanel {
 				},
 				this.searchTokenSource.token,
 			)
+			engineTimer.end({
+				matches: results.total,
+				files: results.fileResults.length,
+			})
 
+			const enrichTimer = createTimer("runSearch.enrichPaths", queryDetails)
 			const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
 			if (workspaceRoot) {
 				for (const fileResult of results.fileResults) {
@@ -202,10 +216,20 @@ export class SearchPanel {
 					}
 				}
 			}
+			enrichTimer.end({ files: results.fileResults.length })
 
+			const tokenTimer = createTimer("runSearch.tokenize", queryDetails)
 			await this.attachTokens(results)
+			tokenTimer.end({ files: results.fileResults.length })
+
 			this.postMessage({ type: "results", results })
+			totalTimer.end({
+				matches: results.total,
+				files: results.fileResults.length,
+				truncated: results.truncated,
+			})
 		} catch (error) {
+			totalTimer.end({ error: true })
 			const message = error instanceof Error ? error.message : "Search failed"
 			this.postMessage({ type: "error", message })
 		}
@@ -213,6 +237,7 @@ export class SearchPanel {
 
 	private async attachTokens(results: SearchResults): Promise<void> {
 		for (const fileResult of results.fileResults) {
+			const fileTimer = createTimer("runSearch.tokenize.file")
 			const lineMap = new Map<number, string>()
 			for (const match of fileResult.matches) {
 				for (const ctx of match.contextBefore) lineMap.set(ctx.line, ctx.text)
@@ -256,6 +281,11 @@ export class SearchPanel {
 					ctx.tokens = tokensByLine.get(ctx.line - 1)
 				}
 			}
+
+			fileTimer.end({
+				groups: groups.length,
+				matches: fileResult.matches.length,
+			})
 		}
 	}
 
@@ -263,6 +293,8 @@ export class SearchPanel {
 		this.persistState(state)
 		this.cancelSearch()
 		this.searchTokenSource = new vscode.CancellationTokenSource()
+		const queryDetails = searchQueryDetails(state)
+		const totalTimer = createTimer("runReplaceAll", queryDetails)
 
 		try {
 			const count = await this.engine.replaceAll(
@@ -280,7 +312,9 @@ export class SearchPanel {
 			)
 			this.postMessage({ type: "replaced", count })
 			await this.runSearch(state)
+			totalTimer.end({ replacements: count })
 		} catch (error) {
+			totalTimer.end({ error: true })
 			const message = error instanceof Error ? error.message : "Replace failed"
 			this.postMessage({ type: "error", message })
 		}
