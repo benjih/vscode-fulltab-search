@@ -226,6 +226,7 @@ export class SearchPanel {
 					}
 				}
 			}
+			results.fileResults.sort((a, b) => a.relativePath.localeCompare(b.relativePath))
 			enrichTimer.end({ files: results.fileResults.length })
 
 			this.postMessage({ type: "results", results })
@@ -302,6 +303,11 @@ export class SearchPanel {
 			if (matchTokens.length > 0) {
 				this.postMessage({ type: "matchTokens", queryId, tokens: matchTokens })
 			}
+
+			// Yield to the macrotask queue so the VS Code IPC layer can deliver
+			// the matchTokens message to the webview before the next file starts.
+			// A plain `await` only yields to microtasks, which isn't enough.
+			await new Promise<void>((resolve) => setImmediate(resolve))
 		}
 	}
 
