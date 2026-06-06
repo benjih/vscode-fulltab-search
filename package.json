@@ -27,6 +27,25 @@
 	],
 	"main": "./out/extension.js",
 	"contributes": {
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "fullTabSearch",
+					"title": "FullTab Search",
+					"icon": "$(search)"
+				}
+			]
+		},
+		"views": {
+			"fullTabSearch": [
+				{
+					"id": "fullTabSearch.activityView",
+					"name": "FullTab Search",
+					"icon": "$(search)",
+					"type": "webview"
+				}
+			]
+		},
 		"commands": [
 			{
 				"command": "fullTabSearch.open",

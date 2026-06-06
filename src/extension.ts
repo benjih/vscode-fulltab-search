@@ -25,7 +25,26 @@ export function activate(context: vscode.ExtensionContext) {
 		},
 	)
 
-	context.subscriptions.push(openSearch, getDebugMetrics, clearDebugMetrics)
+	const openAndCloseSidebar = () => {
+		SearchPanel.show(context)
+		void vscode.commands.executeCommand("workbench.action.closeSidebar")
+	}
+	const activityViewProvider: vscode.WebviewViewProvider = {
+		resolveWebviewView(view) {
+			openAndCloseSidebar()
+			view.onDidChangeVisibility(() => {
+				if (view.visible) {
+					openAndCloseSidebar()
+				}
+			})
+		},
+	}
+	const activityView = vscode.window.registerWebviewViewProvider(
+		"fullTabSearch.activityView",
+		activityViewProvider,
+	)
+
+	context.subscriptions.push(openSearch, getDebugMetrics, clearDebugMetrics, activityView)
 }
 
 export function deactivate() {}
