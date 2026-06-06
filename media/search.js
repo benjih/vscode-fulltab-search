@@ -341,7 +341,9 @@ function collectSectionLines(matches, file) {
 				byLine.set(contextLine.line, {
 					lineNumber: contextLine.line,
 					text: contextLine.text,
-					tokens: contextLine.tokens ?? contextTokenCache.get(`${file}:${contextLine.line}`),
+					tokens:
+						contextLine.tokens ??
+						contextTokenCache.get(`${file}:${contextLine.line}`),
 					match: null,
 				})
 			}
@@ -361,7 +363,9 @@ function collectSectionLines(matches, file) {
 				byLine.set(contextLine.line, {
 					lineNumber: contextLine.line,
 					text: contextLine.text,
-					tokens: contextLine.tokens ?? contextTokenCache.get(`${file}:${contextLine.line}`),
+					tokens:
+						contextLine.tokens ??
+						contextTokenCache.get(`${file}:${contextLine.line}`),
 					match: null,
 				})
 			}
@@ -563,7 +567,11 @@ function renderMatchSection(matches) {
 		}
 	}
 	if (allContextLines.length > 0) {
-		blockContextMeta.set(block, { file, lines: allContextLines, firstMatchId: firstMatch.id })
+		blockContextMeta.set(block, {
+			file,
+			lines: allContextLines,
+			firstMatchId: firstMatch.id,
+		})
 		contextObserver.observe(block)
 	}
 
@@ -726,7 +734,9 @@ window.addEventListener("message", (event) => {
 		case "results":
 			currentResults = message.results
 			matchById = new Map(
-				currentResults.fileResults.flatMap((f) => f.matches).map((m) => [m.id, m]),
+				currentResults.fileResults
+					.flatMap((f) => f.matches)
+					.map((m) => [m.id, m]),
 			)
 			expandedSections.clear()
 			contextTokenCache.clear()

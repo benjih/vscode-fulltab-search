@@ -20,7 +20,7 @@ export class SearchPanel {
 	private readonly panel: vscode.WebviewPanel
 	private readonly engine = new SearchEngine()
 	private readonly tokenizer: SyntaxTokenizer
-	private contextTokenCache = new Map<string, TokenSpan[]>() // "file:line" → tokens
+	private queryCounter = 0
 	private tokenizationQueryId: string | null = null
 	private searchTokenSource: vscode.CancellationTokenSource | null = null
 	private lastState: SearchState | null = null
@@ -127,13 +127,6 @@ export class SearchPanel {
 					message.count,
 				)
 				break
-			case "tokenizeContext":
-				this.handleTokenizeContext(
-					message.matchId,
-					message.file,
-					message.lines,
-				)
-				break
 		}
 	}
 
@@ -190,7 +183,7 @@ export class SearchPanel {
 			const engineTimer = createTimer("runSearch.engine", queryDetails)
 			const results = await this.engine.search(
 				{
-					id: `search-${Date.now()}`,
+					id: `search-${++this.queryCounter}`,
 					pattern: state.pattern,
 					include: state.include,
 					exclude: state.exclude,
@@ -226,7 +219,15 @@ export class SearchPanel {
 					}
 				}
 			}
-			results.fileResults.sort((a, b) => a.relativePath.localeCompare(b.relativePath))
+			results.fileResults.sort((a, b) =>
+				a.relativePath.localeCompare(b.relativePath),
+			)
+			let idCounter = 0
+			for (const fileResult of results.fileResults) {
+				for (const match of fileResult.matches) {
+					match.id = idCounter++
+				}
+			}
 			enrichTimer.end({ files: results.fileResults.length })
 
 			this.postMessage({ type: "results", results })
@@ -247,7 +248,6 @@ export class SearchPanel {
 	private async tokenizeResultsAsync(results: SearchResults): Promise<void> {
 		const queryId = results.queryId
 		this.tokenizationQueryId = queryId
-		this.contextTokenCache.clear()
 
 		for (const fileResult of results.fileResults) {
 			if (this.tokenizationQueryId !== queryId) return
@@ -284,44 +284,40 @@ export class SearchPanel {
 
 			if (this.tokenizationQueryId !== queryId) return
 
-			for (const match of fileResult.matches) {
-				for (const ctx of match.contextBefore) {
-					const tokens = tokensByLine.get(ctx.line - 1)
-					if (tokens) this.contextTokenCache.set(`${fileResult.file}:${ctx.line}`, tokens)
-				}
-				for (const ctx of match.contextAfter) {
-					const tokens = tokensByLine.get(ctx.line - 1)
-					if (tokens) this.contextTokenCache.set(`${fileResult.file}:${ctx.line}`, tokens)
-				}
-			}
-
 			const matchTokens = fileResult.matches.flatMap((match) => {
 				const tokens = tokensByLine.get(match.line - 1)
 				return tokens ? [{ matchId: match.id, tokens }] : []
 			})
 
+			const seenLines = new Set<number>()
+			const contextTokensPayload: Array<{ line: number; tokens: TokenSpan[] }> =
+				[]
+			for (const match of fileResult.matches) {
+				for (const ctx of [...match.contextBefore, ...match.contextAfter]) {
+					if (seenLines.has(ctx.line)) continue
+					seenLines.add(ctx.line)
+					const tokens = tokensByLine.get(ctx.line - 1)
+					if (tokens) contextTokensPayload.push({ line: ctx.line, tokens })
+				}
+			}
+
 			if (matchTokens.length > 0) {
 				this.postMessage({ type: "matchTokens", queryId, tokens: matchTokens })
 			}
+			if (contextTokensPayload.length > 0) {
+				this.postMessage({
+					type: "contextTokens",
+					queryId,
+					file: fileResult.file,
+					tokensByLine: contextTokensPayload,
+				})
+			}
 
 			// Yield to the macrotask queue so the VS Code IPC layer can deliver
-			// the matchTokens message to the webview before the next file starts.
+			// messages to the webview before the next file starts.
 			// A plain `await` only yields to microtasks, which isn't enough.
 			await new Promise<void>((resolve) => setImmediate(resolve))
 		}
-	}
-
-	private handleTokenizeContext(
-		matchId: number,
-		file: string,
-		lines: Array<{ line: number; text: string }>,
-	): void {
-		const tokensByLine = lines.flatMap(({ line }) => {
-			const tokens = this.contextTokenCache.get(`${file}:${line}`)
-			return tokens ? [{ line, tokens }] : []
-		})
-
-		this.postMessage({ type: "contextTokens", matchId, file, tokensByLine })
 	}
 
 	private async runReplaceAll(state: SearchState): Promise<void> {

@@ -81,12 +81,6 @@ export type WebviewMessage =
 			anchorLine: number
 			count: number
 	  }
-	| {
-			type: "tokenizeContext"
-			matchId: number
-			file: string
-			lines: Array<{ line: number; text: string }>
-	  }
 	| { type: "ready" }
 
 export type ExtensionMessage =
@@ -104,7 +98,7 @@ export type ExtensionMessage =
 	  }
 	| {
 			type: "contextTokens"
-			matchId: number
+			queryId: string
 			file: string
 			tokensByLine: Array<{ line: number; tokens: TokenSpan[] }>
 	  }
