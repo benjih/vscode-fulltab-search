@@ -49,6 +49,31 @@ const EXPAND_STEP = 10
 /** @type {Map<number, ExpandedSection>} */
 const expandedSections = new Map()
 
+/** @type {Map<string, TokenSpan[]>} keyed by "file:lineNumber" */
+const contextTokenCache = new Map()
+/** @type {Set<number>} first-match IDs of sections that have already been requested */
+const contextTokenRequested = new Set()
+/** @type {WeakMap<Element, { file: string; lines: Array<{line: number; text: string}>; firstMatchId: number }>} */
+const blockContextMeta = new WeakMap()
+
+const contextObserver = new IntersectionObserver(
+	(entries) => {
+		for (const entry of entries) {
+			if (!entry.isIntersecting) continue
+			const meta = blockContextMeta.get(entry.target)
+			if (!meta || contextTokenRequested.has(meta.firstMatchId)) continue
+			contextTokenRequested.add(meta.firstMatchId)
+			vscode.postMessage({
+				type: "tokenizeContext",
+				matchId: meta.firstMatchId,
+				file: meta.file,
+				lines: meta.lines,
+			})
+		}
+	},
+	{ rootMargin: "200px" },
+)
+
 const patternInput = /** @type {HTMLInputElement} */ (
 	document.getElementById("patternInput")
 )
@@ -298,8 +323,11 @@ function groupMatchesIntoSections(matches) {
 	return sections
 }
 
-/** @param {SearchMatch[]} matches */
-function collectSectionLines(matches) {
+/**
+ * @param {SearchMatch[]} matches
+ * @param {string} file
+ */
+function collectSectionLines(matches, file) {
 	/** @type {Map<number, { lineNumber: number; text: string; tokens: TokenSpan[] | undefined; match: SearchMatch | null }>} */
 	const byLine = new Map()
 
@@ -311,7 +339,7 @@ function collectSectionLines(matches) {
 				byLine.set(contextLine.line, {
 					lineNumber: contextLine.line,
 					text: contextLine.text,
-					tokens: contextLine.tokens,
+					tokens: contextLine.tokens ?? contextTokenCache.get(`${file}:${contextLine.line}`),
 					match: null,
 				})
 			}
@@ -331,7 +359,7 @@ function collectSectionLines(matches) {
 				byLine.set(contextLine.line, {
 					lineNumber: contextLine.line,
 					text: contextLine.text,
-					tokens: contextLine.tokens,
+					tokens: contextLine.tokens ?? contextTokenCache.get(`${file}:${contextLine.line}`),
 					match: null,
 				})
 			}
@@ -436,16 +464,18 @@ function renderExpandButton(direction, match) {
 function renderMatchSection(matches) {
 	const firstMatch = matches[0]
 	const lastMatch = matches[matches.length - 1]
+	const file = firstMatch.file
 	const block = document.createElement("div")
 	block.className = "match-block"
 	block.dataset.matchId = String(firstMatch.id)
+	block.dataset.file = file
 
 	const expandBefore = renderExpandButton("before", firstMatch)
 	if (expandBefore) {
 		block.appendChild(expandBefore)
 	}
 
-	const lines = collectSectionLines(matches)
+	const lines = collectSectionLines(matches, file)
 	const snippet = document.createElement("div")
 	snippet.className = "snippet"
 
@@ -454,6 +484,10 @@ function renderMatchSection(matches) {
 		const isActive = match != null && match.id === activeMatchIndex
 		const row = document.createElement("div")
 		row.className = `snippet-line${isActive ? " active" : ""}`
+
+		if (!match) {
+			row.dataset.contextLine = String(entry.lineNumber)
+		}
 
 		const lineNumber = document.createElement("span")
 		lineNumber.className = "line-number"
@@ -509,10 +543,31 @@ function renderMatchSection(matches) {
 		block.appendChild(meta)
 	}
 
+	// Register with IntersectionObserver so context tokens are loaded lazily
+	const allContextLines = []
+	for (const match of matches) {
+		const { match: effective } = getEffectiveMatch(match)
+		for (const ctx of effective.contextBefore) {
+			if (!allContextLines.some((l) => l.line === ctx.line)) {
+				allContextLines.push({ line: ctx.line, text: ctx.text })
+			}
+		}
+		for (const ctx of effective.contextAfter) {
+			if (!allContextLines.some((l) => l.line === ctx.line)) {
+				allContextLines.push({ line: ctx.line, text: ctx.text })
+			}
+		}
+	}
+	if (allContextLines.length > 0) {
+		blockContextMeta.set(block, { file, lines: allContextLines, firstMatchId: firstMatch.id })
+		contextObserver.observe(block)
+	}
+
 	return block
 }
 
 function renderResults() {
+	contextObserver.disconnect()
 	resultsEl.innerHTML = ""
 
 	if (!currentResults || currentResults.total === 0) {
@@ -667,6 +722,8 @@ window.addEventListener("message", (event) => {
 		case "results":
 			currentResults = message.results
 			expandedSections.clear()
+			contextTokenCache.clear()
+			contextTokenRequested.clear()
 			activeMatchIndex = 0
 			renderResults()
 			updateMatchCounter()
@@ -685,6 +742,24 @@ window.addEventListener("message", (event) => {
 			)
 			scheduleSearch()
 			break
+		case "contextTokens": {
+			for (const { line, tokens } of message.tokensByLine) {
+				contextTokenCache.set(`${message.file}:${line}`, tokens)
+			}
+			// Update context line DOM rows directly without a full re-render
+			for (const block of resultsEl.querySelectorAll(".match-block")) {
+				if (block.dataset.file !== message.file) continue
+				for (const { line, tokens } of message.tokensByLine) {
+					const row = block.querySelector(`[data-context-line="${line}"]`)
+					if (!row) continue
+					const content = row.querySelector(".line-content")
+					if (content && tokens.length > 0) {
+						content.innerHTML = renderTokenSpans(tokens)
+					}
+				}
+			}
+			break
+		}
 		case "expanded": {
 			const match = flattenMatches().find(
 				(entry) => entry.id === message.matchId,
