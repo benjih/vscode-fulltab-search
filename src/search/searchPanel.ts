@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto"
 import * as vscode from "vscode"
 import { SyntaxTokenizer } from "../syntax/tokenizer"
 import { SearchEngine } from "./searchEngine"
@@ -353,7 +354,7 @@ export class SearchPanel {
 		const scriptUri = webview.asWebviewUri(
 			vscode.Uri.joinPath(this.extensionUri, "media", "search.js"),
 		)
-		const nonce = getNonce()
+		const nonce = randomBytes(16).toString("hex")
 
 		return `<!DOCTYPE html>
 <html lang="en">
@@ -406,13 +407,4 @@ export class SearchPanel {
 </body>
 </html>`
 	}
-}
-
-function getNonce(): string {
-	const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-	let nonce = ""
-	for (let i = 0; i < 32; i++) {
-		nonce += chars.charAt(Math.floor(Math.random() * chars.length))
-	}
-	return nonce
 }
