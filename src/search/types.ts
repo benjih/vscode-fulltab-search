@@ -108,3 +108,8 @@ export type ExtensionMessage =
 			file: string
 			tokensByLine: Array<{ line: number; tokens: TokenSpan[] }>
 	  }
+	| {
+			type: "matchTokens"
+			queryId: string
+			tokens: Array<{ matchId: number; tokens: TokenSpan[] }>
+	  }

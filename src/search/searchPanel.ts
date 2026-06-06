@@ -8,6 +8,7 @@ import type {
 	ExtensionMessage,
 	SearchResults,
 	SearchState,
+	TokenSpan,
 	WebviewMessage,
 } from "./types"
 
@@ -19,6 +20,8 @@ export class SearchPanel {
 	private readonly panel: vscode.WebviewPanel
 	private readonly engine = new SearchEngine()
 	private readonly tokenizer: SyntaxTokenizer
+	private contextTokenCache = new Map<string, TokenSpan[]>() // "file:line" → tokens
+	private tokenizationQueryId: string | null = null
 	private searchTokenSource: vscode.CancellationTokenSource | null = null
 	private lastState: SearchState | null = null
 
@@ -125,7 +128,7 @@ export class SearchPanel {
 				)
 				break
 			case "tokenizeContext":
-				await this.handleTokenizeContext(
+				this.handleTokenizeContext(
 					message.matchId,
 					message.file,
 					message.lines,
@@ -225,16 +228,14 @@ export class SearchPanel {
 			}
 			enrichTimer.end({ files: results.fileResults.length })
 
-			const tokenTimer = createTimer("runSearch.tokenize", queryDetails)
-			await this.attachTokens(results)
-			tokenTimer.end({ files: results.fileResults.length })
-
 			this.postMessage({ type: "results", results })
 			totalTimer.end({
 				matches: results.total,
 				files: results.fileResults.length,
 				truncated: results.truncated,
 			})
+
+			void this.tokenizeResultsAsync(results)
 		} catch (error) {
 			totalTimer.end({ error: true })
 			const message = error instanceof Error ? error.message : "Search failed"
@@ -242,12 +243,19 @@ export class SearchPanel {
 		}
 	}
 
-	private async attachTokens(results: SearchResults): Promise<void> {
+	private async tokenizeResultsAsync(results: SearchResults): Promise<void> {
+		const queryId = results.queryId
+		this.tokenizationQueryId = queryId
+		this.contextTokenCache.clear()
+
 		for (const fileResult of results.fileResults) {
-			const fileTimer = createTimer("runSearch.tokenize.file")
+			if (this.tokenizationQueryId !== queryId) return
+
 			const lineMap = new Map<number, string>()
 			for (const match of fileResult.matches) {
+				for (const ctx of match.contextBefore) lineMap.set(ctx.line, ctx.text)
 				lineMap.set(match.line, match.lineText)
+				for (const ctx of match.contextAfter) lineMap.set(ctx.line, ctx.text)
 			}
 
 			const sortedEntries = [...lineMap.entries()].sort(([a], [b]) => a - b)
@@ -273,51 +281,41 @@ export class SearchPanel {
 				fileResult.file,
 			)
 
+			if (this.tokenizationQueryId !== queryId) return
+
 			for (const match of fileResult.matches) {
-				match.tokens = tokensByLine.get(match.line - 1)
-				// Context line tokens are loaded lazily via tokenizeContext
+				for (const ctx of match.contextBefore) {
+					const tokens = tokensByLine.get(ctx.line - 1)
+					if (tokens) this.contextTokenCache.set(`${fileResult.file}:${ctx.line}`, tokens)
+				}
+				for (const ctx of match.contextAfter) {
+					const tokens = tokensByLine.get(ctx.line - 1)
+					if (tokens) this.contextTokenCache.set(`${fileResult.file}:${ctx.line}`, tokens)
+				}
 			}
 
-			fileTimer.end({
-				groups: groups.length,
-				matches: fileResult.matches.length,
+			const matchTokens = fileResult.matches.flatMap((match) => {
+				const tokens = tokensByLine.get(match.line - 1)
+				return tokens ? [{ matchId: match.id, tokens }] : []
 			})
+
+			if (matchTokens.length > 0) {
+				this.postMessage({ type: "matchTokens", queryId, tokens: matchTokens })
+			}
 		}
 	}
 
-	private async handleTokenizeContext(
+	private handleTokenizeContext(
 		matchId: number,
 		file: string,
 		lines: Array<{ line: number; text: string }>,
-	): Promise<void> {
-		if (lines.length === 0) return
-
-		const groups: Array<{ startLine: number; lines: string[] }> = []
-		let groupStart = 0
-		for (let i = 1; i <= lines.length; i++) {
-			const isEnd = i === lines.length
-			const hasGap = !isEnd && lines[i].line > lines[i - 1].line + 1
-			if (isEnd || hasGap) {
-				const slice = lines.slice(groupStart, i)
-				groups.push({
-					startLine: slice[0].line - 1,
-					lines: slice.map((l) => l.text),
-				})
-				groupStart = i
-			}
-		}
-
-		const tokensByLine = await this.tokenizer.tokenizeFileGroups(groups, file)
-
-		this.postMessage({
-			type: "contextTokens",
-			matchId,
-			file,
-			tokensByLine: [...tokensByLine.entries()].map(([line0, tokens]) => ({
-				line: line0 + 1,
-				tokens,
-			})),
+	): void {
+		const tokensByLine = lines.flatMap(({ line }) => {
+			const tokens = this.contextTokenCache.get(`${file}:${line}`)
+			return tokens ? [{ line, tokens }] : []
 		})
+
+		this.postMessage({ type: "contextTokens", matchId, file, tokensByLine })
 	}
 
 	private async runReplaceAll(state: SearchState): Promise<void> {
@@ -399,6 +397,7 @@ export class SearchPanel {
 		this.searchTokenSource?.cancel()
 		this.searchTokenSource?.dispose()
 		this.searchTokenSource = null
+		this.tokenizationQueryId = null
 	}
 
 	private getHtml(): string {

@@ -34,6 +34,8 @@ let searchState = {
 }
 /** @type {SearchResults | null} */
 let currentResults = null
+/** @type {Map<number, SearchMatch>} */
+let matchById = new Map()
 /** @type {number} */
 let activeMatchIndex = 0
 /** @type {ReturnType<typeof setTimeout> | undefined} */
@@ -485,7 +487,9 @@ function renderMatchSection(matches) {
 		const row = document.createElement("div")
 		row.className = `snippet-line${isActive ? " active" : ""}`
 
-		if (!match) {
+		if (match) {
+			row.dataset.rowMatchId = String(match.id)
+		} else {
 			row.dataset.contextLine = String(entry.lineNumber)
 		}
 
@@ -721,6 +725,9 @@ window.addEventListener("message", (event) => {
 			break
 		case "results":
 			currentResults = message.results
+			matchById = new Map(
+				currentResults.fileResults.flatMap((f) => f.matches).map((m) => [m.id, m]),
+			)
 			expandedSections.clear()
 			contextTokenCache.clear()
 			contextTokenRequested.clear()
@@ -742,6 +749,27 @@ window.addEventListener("message", (event) => {
 			)
 			scheduleSearch()
 			break
+		case "matchTokens": {
+			if (currentResults?.queryId !== message.queryId) break
+			for (const { matchId, tokens } of message.tokens) {
+				const match = matchById.get(matchId)
+				if (!match) continue
+				match.tokens = tokens
+				const row = resultsEl.querySelector(`[data-row-match-id="${matchId}"]`)
+				if (!row) continue
+				const content = row.querySelector(".line-content")
+				if (!content) continue
+				const isActive = matchId === activeMatchIndex
+				content.innerHTML = renderLineContent(
+					match.lineText,
+					match.matchStart,
+					match.matchEnd,
+					isActive,
+					tokens,
+				)
+			}
+			break
+		}
 		case "contextTokens": {
 			for (const { line, tokens } of message.tokensByLine) {
 				contextTokenCache.set(`${message.file}:${line}`, tokens)
