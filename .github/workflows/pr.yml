@@ -21,6 +21,8 @@ jobs:
         run: |
           if [ "${{ matrix.target }}" = "test-ui" ]; then
             devbox run -- env EXTENSIONS_FOLDER=.test-extensions EXTENSION_DEV_PATH="$GITHUB_WORKSPACE" xvfb-run -a make test-ui
+          elif [ "${{ matrix.target }}" = "test" ]; then
+            devbox run -- xvfb-run -a make test
           else
             devbox run -- make ${{ matrix.target }}
           fi
