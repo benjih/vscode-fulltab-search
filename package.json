@@ -2,7 +2,7 @@
 	"name": "fulltab-search",
 	"displayName": "FullTab Search",
 	"description": "Full-tab project search with tabs, filters, and inline results",
-	"version": "0.0.4",
+	"version": "0.0.5",
 	"publisher": "local",
 	"repository": {
 		"type": "git",
