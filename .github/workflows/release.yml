@@ -17,11 +17,13 @@ jobs:
           enable-cache: true
 
       - name: Set version to commit SHA
+        id: version
         run: |
           SHORT_SHA="${GITHUB_SHA::7}"
           CURRENT_VERSION=$(jq -r '.version' package.json)
           jq --arg v "${CURRENT_VERSION}-${SHORT_SHA}" '.version = $v' package.json > package.json.tmp
           mv package.json.tmp package.json
+          echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
 
       - name: Build package
         run: devbox run -- make package
@@ -29,6 +31,6 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.sha }}
-          name: ${{ github.sha }}
+          tag_name: ${{ steps.version.outputs.short_sha }}
+          name: ${{ steps.version.outputs.short_sha }}
           files: "*.vsix"
