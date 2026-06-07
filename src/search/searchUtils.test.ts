@@ -7,8 +7,8 @@ import {
 	normalizeGlob,
 	splitLines,
 	splitPatterns,
-} from "../../search/searchUtils"
-import type { SearchMatch } from "../../search/types"
+} from "./searchUtils"
+import type { SearchMatch } from "./types"
 
 describe("splitLines", () => {
 	it("returns complete lines and holds back the incomplete remainder", () => {

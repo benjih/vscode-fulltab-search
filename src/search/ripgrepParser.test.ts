@@ -3,8 +3,8 @@ import {
 	buildRipgrepArgs,
 	createRipgrepParseState,
 	parseRipgrepLine,
-} from "../../search/ripgrepParser"
-import type { SearchQuery } from "../../search/types"
+} from "./ripgrepParser"
+import type { SearchQuery } from "./types"
 
 function baseQuery(overrides: Partial<SearchQuery> = {}): SearchQuery {
 	return {
