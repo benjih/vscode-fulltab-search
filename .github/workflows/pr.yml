@@ -1,6 +1,8 @@
-name: Pull request workflow
+name: CI
 
 on:
+  push:
+    branches: [main]
   pull_request:
 
 jobs:
