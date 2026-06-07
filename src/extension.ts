@@ -44,7 +44,12 @@ export function activate(context: vscode.ExtensionContext) {
 		activityViewProvider,
 	)
 
-	context.subscriptions.push(openSearch, getDebugMetrics, clearDebugMetrics, activityView)
+	context.subscriptions.push(
+		openSearch,
+		getDebugMetrics,
+		clearDebugMetrics,
+		activityView,
+	)
 }
 
 export function deactivate() {}
