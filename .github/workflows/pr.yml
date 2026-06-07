@@ -11,7 +11,7 @@ jobs:
       matrix:
         target: [lint, test, build, test-ui]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6.0.3
 
       - uses: jetify-com/devbox-install-action@v0.15.0
         with:
