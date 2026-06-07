@@ -33,4 +33,5 @@ jobs:
         with:
           tag_name: ${{ steps.version.outputs.short_sha }}
           name: ${{ steps.version.outputs.short_sha }}
+          prerelease: true
           files: "*.vsix"
