@@ -48,6 +48,11 @@ describe("buildRipgrepArgs", () => {
 		expect(args).toContain("--word-regexp")
 	})
 
+	it("includes hidden files and directories", () => {
+		const args = buildRipgrepArgs(baseQuery(), "/root")
+		expect(args).toContain("--hidden")
+	})
+
 	it("adds include and exclude globs with normalization", () => {
 		const args = buildRipgrepArgs(
 			baseQuery({ include: "src/**", exclude: "*.log, dist/**" }),
