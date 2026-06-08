@@ -1,5 +1,5 @@
 import * as assert from "node:assert"
-import { By, EditorView, WebView } from "vscode-extension-tester"
+import { By, EditorView, Key, WebView } from "vscode-extension-tester"
 import { MARKER } from "../test/fixtureConstants"
 import { clearPerfMetricsFile, waitForPerfMetric } from "../test/perfHelpers"
 import {
@@ -42,6 +42,27 @@ describe("FullTab Search UI E2E", () => {
 	it("shows empty state before searching", async () => {
 		const empty = await view.findWebElement(By.css(".empty-state"))
 		assert.ok((await empty.getText()).includes("Enter a search query"))
+	})
+
+	it("does not search while typing — only on Enter", async function () {
+		this.timeout(15_000)
+		const input = await view.findWebElement(By.id("patternInput"))
+		await input.clear()
+		await input.sendKeys(MARKER)
+
+		// Wait longer than the old debounce window to confirm no search fired.
+		await new Promise((resolve) => setTimeout(resolve, 500))
+
+		const bar = await view.findWebElement(By.id("statusBar"))
+		const status = await bar.getText()
+		assert.ok(
+			!status.match(/\d+ results/),
+			`Expected no results while typing, but status was: "${status}"`,
+		)
+
+		// Confirm search fires after Enter.
+		await input.sendKeys(Key.ENTER)
+		await waitForStatus(view, (text) => resultCountFromStatus(text) >= 2, 35_000)
 	})
 
 	it("runs search from the pattern input and lists fixture files", async function () {

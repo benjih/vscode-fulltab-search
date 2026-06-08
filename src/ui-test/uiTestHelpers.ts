@@ -3,6 +3,7 @@ import {
 	By,
 	EditorView,
 	InputBox,
+	Key,
 	ModalDialog,
 	type WebView,
 	Workbench,
@@ -135,7 +136,5 @@ export async function setPatternAndSearch(
 ): Promise<void> {
 	const input = await view.findWebElement(By.id("patternInput"))
 	await input.clear()
-	await input.sendKeys(pattern)
-	// Debounced search in the webview (250ms); avoid Enter which can behave differently in WebDriver.
-	await new Promise((resolve) => setTimeout(resolve, 600))
+	await input.sendKeys(pattern, Key.ENTER)
 }

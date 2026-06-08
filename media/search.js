@@ -38,8 +38,6 @@ let currentResults = null
 let matchById = new Map()
 /** @type {number} */
 let activeMatchIndex = 0
-/** @type {ReturnType<typeof setTimeout> | undefined} */
-let searchDebounce
 
 // Number of lines to reveal each time the user clicks an expand-context button.
 const EXPAND_STEP = 10
@@ -139,13 +137,9 @@ function syncStateFromInputs() {
 	searchState.useRegex = regexToggle.classList.contains("active")
 }
 
-// Debounces search requests so we don't flood the extension host on every keystroke.
 function scheduleSearch() {
 	syncStateFromInputs()
-	clearTimeout(searchDebounce)
-	searchDebounce = setTimeout(() => {
-		vscode.postMessage({ type: "search", state: searchState })
-	}, 250)
+	vscode.postMessage({ type: "search", state: searchState })
 }
 
 function setStatus(text) {
@@ -660,9 +654,11 @@ function renderResults() {
 	}
 }
 
-patternInput.addEventListener("input", scheduleSearch)
-includeInput.addEventListener("input", scheduleSearch)
-excludeInput.addEventListener("input", scheduleSearch)
+for (const input of [patternInput, includeInput, excludeInput]) {
+	input.addEventListener("keydown", (event) => {
+		if (event.key === "Enter") scheduleSearch()
+	})
+}
 
 replaceInput.addEventListener("input", syncStateFromInputs)
 
@@ -699,12 +695,6 @@ replaceAllBtn.addEventListener("click", () => {
 })
 
 document.addEventListener("keydown", (event) => {
-	if (event.key === "Enter" && document.activeElement === patternInput) {
-		clearTimeout(searchDebounce)
-		syncStateFromInputs()
-		vscode.postMessage({ type: "search", state: searchState })
-	}
-
 	if (event.key === "F4" || (event.key === "g" && event.ctrlKey)) {
 		event.preventDefault()
 		focusMatch(activeMatchIndex + (event.shiftKey ? -1 : 1))
