@@ -26,7 +26,7 @@ const vscode = acquireVsCodeApi()
 let searchState = {
 	pattern: "",
 	include: "",
-	exclude: "node_modules/**, *.lock",
+	exclude: "",
 	caseSensitive: false,
 	wholeWord: false,
 	useRegex: false,
