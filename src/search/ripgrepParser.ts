@@ -102,6 +102,7 @@ export function buildRipgrepArgs(
 		"--json",
 		"--line-number",
 		"--no-heading",
+		"--hidden",
 		`--max-count=${MAX_RESULTS}`,
 		`-C${CONTEXT_LINES}`,
 	]
