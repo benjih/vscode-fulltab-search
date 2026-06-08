@@ -19,6 +19,8 @@ body {
 	font-size: var(--vscode-font-size);
 	color: var(--vscode-foreground);
 	background: var(--vscode-editor-background);
+	height: 100vh;
+	overflow: hidden;
 }
 
 @supports selector(::-webkit-scrollbar) {
@@ -60,7 +62,6 @@ input {
 	display: flex;
 	flex-direction: column;
 	height: 100%;
-	min-height: 100vh;
 }
 
 .search-controls {
@@ -69,6 +70,9 @@ input {
 	flex-direction: column;
 	gap: 8px;
 	border-bottom: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
+	background: var(--vscode-editor-background);
+	z-index: 10;
+	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
 .search-row,
@@ -162,7 +166,7 @@ input {
 .results {
 	flex: 1;
 	overflow: auto;
-	padding: 8px 0 24px;
+	padding: 0 0 24px;
 }
 
 .empty-state {
@@ -171,13 +175,14 @@ input {
 }
 
 .file-group {
-	margin-bottom: 12px;
+	margin-top: 0px;
+	margin-bottom: 10px;
 }
 
 .file-header {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: 0px;
 	padding: 6px 12px;
 	position: sticky;
 	top: 0;
