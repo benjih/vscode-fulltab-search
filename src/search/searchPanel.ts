@@ -94,7 +94,7 @@ export class SearchPanel {
 			case "ready":
 				this.postMessage({
 					type: "init",
-					state: this.lastState,
+					state: null,
 				})
 				break
 			case "search":
