@@ -24,7 +24,6 @@ export class SearchPanel {
 	private queryCounter = 0
 	private tokenizationQueryId: string | null = null
 	private searchTokenSource: vscode.CancellationTokenSource | null = null
-	private lastState: SearchState | null = null
 
 	private constructor(
 		panel: vscode.WebviewPanel,
@@ -34,7 +33,6 @@ export class SearchPanel {
 		private readonly iconResolver: FileIconResolver,
 	) {
 		this.panel = panel
-		this.lastState = globalState.get<SearchState | null>(STATE_KEY, null)
 		this.tokenizer = new SyntaxTokenizer(extensionUri, disposables)
 
 		const fontFaceCss = iconResolver.generateFontFaceCss(this.panel.webview)
@@ -413,7 +411,6 @@ export class SearchPanel {
 	}
 
 	private persistState(state: SearchState): void {
-		this.lastState = state
 		void this.globalState.update(STATE_KEY, state)
 	}
 

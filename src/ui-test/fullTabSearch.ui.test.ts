@@ -62,7 +62,11 @@ describe("FullTab Search UI E2E", () => {
 
 		// Confirm search fires after Enter.
 		await input.sendKeys(Key.ENTER)
-		await waitForStatus(view, (text) => resultCountFromStatus(text) >= 2, 35_000)
+		await waitForStatus(
+			view,
+			(text) => resultCountFromStatus(text) >= 2,
+			35_000,
+		)
 	})
 
 	it("runs search from the pattern input and lists fixture files", async function () {
