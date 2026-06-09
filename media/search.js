@@ -40,6 +40,8 @@ let matchById = new Map()
 let matchesByFileLine = new Map()
 /** @type {number} */
 let activeMatchIndex = 0
+/** @type {boolean} */
+let editMode = false
 
 // Number of lines to reveal each time the user clicks an expand-context button.
 const EXPAND_STEP = 10
@@ -118,6 +120,9 @@ const replaceOne = /** @type {HTMLButtonElement} */ (
 const replaceAllBtn = /** @type {HTMLButtonElement} */ (
 	document.getElementById("replaceAll")
 )
+const editToggle = /** @type {HTMLButtonElement} */ (
+	document.getElementById("editToggle")
+)
 
 function syncInputsFromState() {
 	patternInput.value = searchState.pattern
@@ -168,6 +173,8 @@ function flattenMatches() {
 }
 
 function focusMatch(index) {
+	const active = /** @type {HTMLElement | null} */ (document.activeElement)
+	if (active?.contentEditable === "true") active.blur()
 	const matches = flattenMatches()
 	if (matches.length === 0) {
 		activeMatchIndex = 0
@@ -477,8 +484,40 @@ function renderExpandButton(direction, match) {
 	return button
 }
 
+/**
+ * @param {string} file
+ * @param {number} lineNumber
+ * @param {string} newText
+ */
+function updateLineInDataModel(file, lineNumber, newText) {
+	if (!currentResults) return
+	for (const fileResult of currentResults.fileResults) {
+		if (fileResult.file !== file) continue
+		for (const match of fileResult.matches) {
+			if (match.line === lineNumber) {
+				match.lineText = newText
+				match.tokens = undefined
+			}
+			for (const ctx of match.contextBefore) {
+				if (ctx.line === lineNumber) {
+					ctx.text = newText
+					ctx.tokens = undefined
+				}
+			}
+			for (const ctx of match.contextAfter) {
+				if (ctx.line === lineNumber) {
+					ctx.text = newText
+					ctx.tokens = undefined
+				}
+			}
+		}
+	}
+	contextTokenCache.delete(`${file}:${lineNumber}`)
+}
+
 /** @param {SearchMatch[]} matches */
 function renderMatchSection(matches) {
+	const _vscode = /** @type {{ postMessage(msg: unknown): void }} */ (/** @type {unknown} */ (vscode))
 	const firstMatch = matches[0]
 	const lastMatch = matches[matches.length - 1]
 	const file = firstMatch.file
@@ -529,19 +568,78 @@ function renderMatchSection(matches) {
 		row.appendChild(lineNumber)
 		row.appendChild(content)
 
-		if (lineMatches.length > 0) {
-			const match = lineMatches[0]
-			row.addEventListener("click", () => {
-				activeMatchIndex = match.id
-				updateMatchCounter()
-				renderResults()
-				vscode.postMessage({
-					type: "openMatch",
-					file: match.file,
-					line: match.line,
-					column: match.column,
-				})
+		const match = lineMatches.length > 0 ? lineMatches[0] : null
+
+		if (editMode) {
+			const rawText = entry.text
+			content.contentEditable = "true"
+			content.spellcheck = false
+
+			content.addEventListener("focus", () => {
+				content.dataset.savedHtml = content.innerHTML
+				if (content.querySelector("span")) {
+					content.textContent = content.textContent ?? rawText
+				}
 			})
+
+			content.addEventListener("blur", () => {
+				const savedHtml = content.dataset.savedHtml ?? ""
+				const newText = content.textContent ?? ""
+				delete content.dataset.savedHtml
+				if (newText !== rawText) {
+					updateLineInDataModel(file, entry.lineNumber, newText)
+					_vscode.postMessage({ type: "editLine", file, line: entry.lineNumber, newContent: newText })
+					content.textContent = newText
+				} else {
+					content.innerHTML = savedHtml
+				}
+			})
+
+			content.addEventListener("keydown", (e) => {
+				if (e.key === "Enter") {
+					e.preventDefault()
+					content.blur()
+				} else if (e.key === "Escape") {
+					e.preventDefault()
+					const savedHtml = content.dataset.savedHtml
+					if (savedHtml !== undefined) {
+						content.innerHTML = savedHtml
+						delete content.dataset.savedHtml
+					}
+					content.blur()
+				}
+			})
+
+			// Prevent bubbling so clicking the content doesn't open the file.
+			content.addEventListener("click", (e) => e.stopPropagation())
+
+			if (match) {
+				lineNumber.addEventListener("click", () => {
+					activeMatchIndex = match.id
+					updateMatchCounter()
+					renderResults()
+					_vscode.postMessage({
+						type: "openMatch",
+						file: match.file,
+						line: match.line,
+						column: match.column,
+					})
+				})
+			}
+		} else {
+			if (match) {
+				row.addEventListener("click", () => {
+					activeMatchIndex = match.id
+					updateMatchCounter()
+					renderResults()
+					_vscode.postMessage({
+						type: "openMatch",
+						file: match.file,
+						line: match.line,
+						column: match.column,
+					})
+				})
+			}
 		}
 
 		snippet.appendChild(row)
@@ -602,6 +700,7 @@ function renderSplash() {
 function renderResults() {
 	contextObserver.disconnect()
 	resultsEl.innerHTML = ""
+	resultsEl.classList.toggle("edit-mode", editMode)
 
 	if (!currentResults || currentResults.total === 0) {
 		if (patternInput.value.trim()) {
@@ -714,6 +813,14 @@ for (const toggle of [caseToggle, wordToggle, regexToggle]) {
 prevMatch.addEventListener("click", () => focusMatch(activeMatchIndex - 1))
 nextMatch.addEventListener("click", () => focusMatch(activeMatchIndex + 1))
 
+editToggle.addEventListener("click", () => {
+	const active = /** @type {HTMLElement | null} */ (document.activeElement)
+	if (active?.contentEditable === "true") active.blur()
+	editMode = !editMode
+	editToggle.classList.toggle("active", editMode)
+	renderResults()
+})
+
 replaceOne.addEventListener("click", () => {
 	const matches = flattenMatches()
 	const match = matches[activeMatchIndex]
@@ -815,7 +922,7 @@ window.addEventListener("message", (event) => {
 				)
 				if (!row) continue
 				const content = row.querySelector(".line-content")
-				if (!content) continue
+				if (!content || content === document.activeElement) continue
 				content.innerHTML = renderLineContent(
 					match.lineText,
 					matchHighlightRanges(lineMatches),
@@ -835,13 +942,16 @@ window.addEventListener("message", (event) => {
 					const row = block.querySelector(`[data-context-line="${line}"]`)
 					if (!row) continue
 					const content = row.querySelector(".line-content")
-					if (content && tokens.length > 0) {
+					if (content && content !== document.activeElement && tokens.length > 0) {
 						content.innerHTML = renderTokenSpans(tokens)
 					}
 				}
 			}
 			break
 		}
+		case "lineEdited":
+			setStatus(`Saved line ${message.line}`)
+			break
 		case "expanded": {
 			const match = flattenMatches().find(
 				(entry) => entry.id === message.matchId,
