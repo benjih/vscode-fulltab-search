@@ -19,6 +19,21 @@ import type {
 
 const EXPAND_CHUNK = 10
 
+// applyEdit only updates in-memory documents and leaves them dirty — it never
+// writes to disk. Search reads from disk via ripgrep, so edited documents must
+// be saved or replacements are invisible to the next search (and lost entirely
+// for files not open in an editor).
+export async function saveEditedDocuments(uris: vscode.Uri[]): Promise<void> {
+	for (const uri of uris) {
+		const document = vscode.workspace.textDocuments.find(
+			(doc) => doc.uri.toString() === uri.toString(),
+		)
+		if (document?.isDirty) {
+			await document.save()
+		}
+	}
+}
+
 export class SearchEngine {
 	private activeProcess: ReturnType<typeof spawn> | null = null
 
@@ -90,10 +105,12 @@ export class SearchEngine {
 		const totalTimer = createTimer("replaceAll", queryDetails)
 		const results = await this.search(query, token)
 		const edit = new vscode.WorkspaceEdit()
+		const editedUris: vscode.Uri[] = []
 		let count = 0
 
 		for (const fileResult of results.fileResults) {
 			const uri = vscode.Uri.file(fileResult.file)
+			editedUris.push(uri)
 			for (const match of fileResult.matches) {
 				const range = new vscode.Range(
 					match.line - 1,
@@ -108,7 +125,13 @@ export class SearchEngine {
 
 		const applyTimer = createTimer("replaceAll.applyEdit")
 		if (count > 0) {
-			await vscode.workspace.applyEdit(edit)
+			const applied = await vscode.workspace.applyEdit(edit)
+			if (!applied) {
+				applyTimer.end({ replacements: count, error: true })
+				totalTimer.end({ replacements: count, error: true })
+				throw new Error("Failed to apply replacement edits")
+			}
+			await saveEditedDocuments(editedUris)
 		}
 		applyTimer.end({ replacements: count })
 

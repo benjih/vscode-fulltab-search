@@ -52,8 +52,8 @@ describe("FullTab Search — fresh panel state", () => {
 		assert.strictEqual(await excludeInput.getAttribute("value"), "")
 	})
 
-	it("shows empty state rather than re-running the last search", async () => {
-		const empty = await view.findWebElement(By.css(".empty-state"))
-		assert.ok((await empty.getText()).includes("Enter a search query"))
+	it("shows the splash screen rather than re-running the last search", async () => {
+		const splash = await view.findWebElement(By.css(".splash"))
+		assert.ok((await splash.getText()).includes("Search your workspace"))
 	})
 })

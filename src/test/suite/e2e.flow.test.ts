@@ -29,7 +29,7 @@ suite("E2E Flow Suite", () => {
 		const results = await engine.search(makeQuery(), token.token)
 		token.dispose()
 
-		assert.strictEqual(results.total, 2)
+		assert.strictEqual(results.total, 4)
 	})
 
 	test("openMatch navigates editor to match location", async function () {
@@ -68,7 +68,9 @@ suite("E2E Flow Suite", () => {
 		assert.ok(vscode.workspace.workspaceFolders)
 		const root = vscode.workspace.workspaceFolders[0].uri.fsPath
 		const tempFile = path.join(root, "src", ".e2e-replace-target.ts")
-		const original = `export const value = '${MARKER}';\n`
+		// Two occurrences on one line plus one on another: replaceAll must
+		// cover every occurrence, not just the first per line.
+		const original = `export const value = '${MARKER} ${MARKER}';\nexport const other = '${MARKER}';\n`
 
 		fs.writeFileSync(tempFile, original, "utf8")
 
@@ -84,11 +86,10 @@ suite("E2E Flow Suite", () => {
 			)
 			token.dispose()
 
-			assert.strictEqual(count, 1)
-			const document = await vscode.workspace.openTextDocument(
-				vscode.Uri.file(tempFile),
-			)
-			const updated = document.getText()
+			assert.strictEqual(count, 3)
+			// Read from disk, not the in-memory document: search runs ripgrep
+			// against disk, so replacements must be persisted to count as applied.
+			const updated = fs.readFileSync(tempFile, "utf8")
 			assert.ok(updated.includes("__FULLTAB_REPLACED__"))
 			assert.ok(!updated.includes(MARKER))
 		} finally {

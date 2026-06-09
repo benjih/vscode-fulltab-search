@@ -62,8 +62,8 @@ export function parseRipgrepLine(line: string, state: RipgrepParseState): void {
 			break
 		case "match":
 			if (parsed.data?.path?.text && parsed.data.lines?.text) {
-				const submatch = parsed.data.submatches?.[0]
-				if (!submatch) {
+				const submatches = parsed.data.submatches
+				if (!submatches || submatches.length === 0) {
 					break
 				}
 
@@ -71,19 +71,24 @@ export function parseRipgrepLine(line: string, state: RipgrepParseState): void {
 				const contextBefore = state.currentMatch
 					? [...state.currentMatch.contextAfter]
 					: [...state.pendingBefore]
-				const match: RawSearchMatch = {
-					file: parsed.data.path.text,
-					relativePath: parsed.data.path.text,
-					line: parsed.data.line_number ?? 1,
-					column: submatch.start,
-					lineText,
-					matchStart: submatch.start,
-					matchEnd: submatch.end,
-					contextBefore,
-					contextAfter: [],
+				// Ripgrep emits one match event per line; every occurrence on that
+				// line arrives in `submatches`. Emit a match per occurrence so
+				// navigation and replace cover them all.
+				for (const submatch of submatches) {
+					const match: RawSearchMatch = {
+						file: parsed.data.path.text,
+						relativePath: parsed.data.path.text,
+						line: parsed.data.line_number ?? 1,
+						column: submatch.start,
+						lineText,
+						matchStart: submatch.start,
+						matchEnd: submatch.end,
+						contextBefore,
+						contextAfter: [],
+					}
+					state.matches.push(match)
+					state.currentMatch = match
 				}
-				state.matches.push(match)
-				state.currentMatch = match
 				state.pendingBefore = []
 			}
 			break

@@ -3,7 +3,7 @@ import * as vscode from "vscode"
 import { createTimer, searchQueryDetails } from "../debug/metrics"
 import { SyntaxTokenizer } from "../syntax/tokenizer"
 import { FileIconResolver } from "./fileIconResolver"
-import { SearchEngine } from "./searchEngine"
+import { SearchEngine, saveEditedDocuments } from "./searchEngine"
 import type {
 	ContextLine,
 	ExtensionMessage,
@@ -406,7 +406,12 @@ export class SearchPanel {
 			new vscode.Range(line - 1, column, line - 1, column + length),
 			replacement,
 		)
-		await vscode.workspace.applyEdit(edit)
+		const applied = await vscode.workspace.applyEdit(edit)
+		if (!applied) {
+			this.postMessage({ type: "error", message: "Replace failed" })
+			return
+		}
+		await saveEditedDocuments([uri])
 		this.postMessage({ type: "replaced", count: 1 })
 	}
 

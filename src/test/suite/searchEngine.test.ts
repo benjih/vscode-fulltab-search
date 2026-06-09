@@ -25,13 +25,15 @@ suite("SearchEngine Integration Suite", () => {
 
 		const results = await engine.search(makeQuery(), tokenSource.token)
 
-		assert.strictEqual(results.total, 2)
+		assert.strictEqual(results.total, 4)
 		assert.strictEqual(results.truncated, false)
-		assert.ok(results.fileResults.length >= 2)
+		assert.ok(results.fileResults.length >= 4)
 
 		const relativePaths = results.fileResults.map((entry) => entry.relativePath)
 		assert.ok(relativePaths.some((p) => p.endsWith("hello.ts")))
 		assert.ok(relativePaths.some((p) => p.endsWith("utils.ts")))
+		assert.ok(relativePaths.some((p) => p.endsWith("marker.json")))
+		assert.ok(relativePaths.some((p) => p.endsWith("marker.md")))
 	})
 
 	test("respects include glob", async function () {
@@ -50,7 +52,7 @@ suite("SearchEngine Integration Suite", () => {
 		this.timeout(15_000)
 
 		const results = await engine.search(
-			makeQuery({ exclude: "*.log, **/*.ts" }),
+			makeQuery({ exclude: "*.log, **/*.ts, **/*.json, **/*.md" }),
 			tokenSource.token,
 		)
 
