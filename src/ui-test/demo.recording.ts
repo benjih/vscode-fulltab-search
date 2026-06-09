@@ -27,6 +27,13 @@ const DEMO_QUERY = "fetchJson"
 const EDIT_TARGET_SNIPPET = "retries: 3"
 const EDIT_APPEND_TEXT = " // the posts API is flaky"
 
+// Recording size: the rendered viewport is pinned via CDP device emulation
+// (Electron's chromedriver does not implement webdriver window sizing).
+// Frames come out at WIDTH x HEIGHT times SCALE.
+const RECORD_WIDTH = Number(process.env.DEMO_WINDOW_WIDTH ?? 1280)
+const RECORD_HEIGHT = Number(process.env.DEMO_WINDOW_HEIGHT ?? 800)
+const RECORD_SCALE = 2
+
 function pause(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms))
 }
@@ -91,6 +98,15 @@ describe("FullTab Search demo recording", () => {
 	before(async function () {
 		this.timeout(120_000)
 		fs.mkdirSync(FRAMES_DIR, { recursive: true })
+		const driver = VSBrowser.instance.driver as unknown as {
+			sendDevToolsCommand(cmd: string, params: object): Promise<void>
+		}
+		await driver.sendDevToolsCommand("Emulation.setDeviceMetricsOverride", {
+			width: RECORD_WIDTH,
+			height: RECORD_HEIGHT,
+			deviceScaleFactor: RECORD_SCALE,
+			mobile: false,
+		})
 		await ensureFixtureWorkspaceOpen(DEMO_WORKSPACE)
 		await openFullTabSearchPanel()
 		view = new WebView()
