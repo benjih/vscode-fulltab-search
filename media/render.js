@@ -38,6 +38,12 @@ export function focusMatch(index) {
 	state.activeMatchIndex =
 		((index % matches.length) + matches.length) % matches.length
 	updateMatchCounter()
+
+	// Navigating into a collapsed file group reveals it again.
+	const active = matches.find((m) => m.id === state.activeMatchIndex)
+	if (active) {
+		state.collapsedFiles.delete(active.file)
+	}
 	renderResults()
 
 	const activeEl = document.querySelector(".snippet-line.active")
@@ -362,11 +368,24 @@ export function renderResults() {
 	}
 
 	for (const fileResult of state.currentResults.fileResults) {
+		const collapsed = state.collapsedFiles.has(fileResult.file)
 		const group = document.createElement("section")
-		group.className = "file-group"
+		group.className = `file-group${collapsed ? " collapsed" : ""}`
 
 		const header = document.createElement("div")
 		header.className = "file-header"
+		header.title = collapsed ? "Expand results" : "Collapse results"
+		header.addEventListener("click", () => {
+			if (collapsed) {
+				state.collapsedFiles.delete(fileResult.file)
+			} else {
+				state.collapsedFiles.add(fileResult.file)
+			}
+			renderResults()
+		})
+
+		const chevron = document.createElement("span")
+		chevron.className = `collapse-chevron codicon codicon-chevron-${collapsed ? "right" : "down"}`
 
 		let icon
 		if (fileResult.iconUri) {
@@ -397,10 +416,15 @@ export function renderResults() {
 		breadcrumb.className = "file-breadcrumb"
 		breadcrumb.textContent = fileResult.matches[0]?.breadcrumb ?? ""
 
+		const count = document.createElement("span")
+		count.className = "match-count"
+		count.textContent = String(fileResult.matches.length)
+
 		const openButton = document.createElement("button")
 		openButton.className = "open-file"
 		openButton.textContent = "Open File"
-		openButton.addEventListener("click", () => {
+		openButton.addEventListener("click", (event) => {
+			event.stopPropagation()
 			const firstMatch = fileResult.matches[0]
 			if (firstMatch) {
 				vscode.postMessage({
@@ -412,12 +436,19 @@ export function renderResults() {
 			}
 		})
 
+		header.appendChild(chevron)
 		header.appendChild(icon)
 		header.appendChild(name)
 		header.appendChild(path)
 		header.appendChild(breadcrumb)
+		header.appendChild(count)
 		header.appendChild(openButton)
 		group.appendChild(header)
+
+		if (collapsed) {
+			resultsEl.appendChild(group)
+			continue
+		}
 
 		const sections = groupMatchesIntoSections(fileResult.matches)
 		for (let i = 0; i < sections.length; i++) {

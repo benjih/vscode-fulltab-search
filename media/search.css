@@ -228,6 +228,28 @@ input {
 	z-index: 1;
 }
 
+.file-header {
+	cursor: pointer;
+	user-select: none;
+}
+
+.collapse-chevron {
+	flex-shrink: 0;
+	margin-right: 4px;
+	opacity: 0.7;
+}
+
+.match-count {
+	flex-shrink: 0;
+	margin: 0 8px;
+	padding: 0 6px;
+	border-radius: 8px;
+	font-size: 0.82em;
+	font-variant-numeric: tabular-nums;
+	background: var(--vscode-badge-background, rgba(128, 128, 128, 0.3));
+	color: var(--vscode-badge-foreground, inherit);
+}
+
 .file-icon {
 	flex-shrink: 0;
 	margin-right: 6px;
