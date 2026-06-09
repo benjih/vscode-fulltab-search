@@ -5,3 +5,5 @@ test-resources/
 .test-extensions/
 **/.fulltab-perf.ndjson
 *.vsix
+.demo-tmp/
+.demo-frames/
