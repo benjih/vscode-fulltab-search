@@ -50,7 +50,8 @@ function stripJsoncComments(input: string): string {
 			while (i < input.length && input[i] !== "\n") i++
 		} else if (ch === "/" && input[i + 1] === "*") {
 			i += 2
-			while (i < input.length && !(input[i] === "*" && input[i + 1] === "/")) i++
+			while (i < input.length && !(input[i] === "*" && input[i + 1] === "/"))
+				i++
 			i += 2
 		} else {
 			result += ch
@@ -63,7 +64,7 @@ function stripJsoncComments(input: string): string {
 function charFromCssEscape(cssEscape: string): string {
 	const hex = cssEscape.replace(/^\\+/, "")
 	const codePoint = parseInt(hex, 16)
-	return isNaN(codePoint) ? cssEscape : String.fromCodePoint(codePoint)
+	return Number.isNaN(codePoint) ? cssEscape : String.fromCodePoint(codePoint)
 }
 
 export class FileIconResolver {
@@ -97,7 +98,9 @@ export class FileIconResolver {
 			.getConfiguration("workbench")
 			.get<string>("iconTheme")
 
-		appendOutput(`[FileIconResolver] workbench.iconTheme = ${themeId ?? "unset"}`)
+		appendOutput(
+			`[FileIconResolver] workbench.iconTheme = ${themeId ?? "unset"}`,
+		)
 		if (!themeId) return
 
 		// Build file-extension → language-ID map from all installed extensions
@@ -116,7 +119,9 @@ export class FileIconResolver {
 			}
 		}
 
-		appendOutput(`[FileIconResolver] built ${this.extToLangId.size} ext→langId mappings`)
+		appendOutput(
+			`[FileIconResolver] built ${this.extToLangId.size} ext→langId mappings`,
+		)
 
 		for (const ext of vscode.extensions.all) {
 			const iconThemes = ext.packageJSON?.contributes?.iconThemes as

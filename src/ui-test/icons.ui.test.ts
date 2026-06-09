@@ -40,12 +40,19 @@ describe("FullTab Search — file icons", () => {
 		await waitForStatus(view, (t) => resultCountFromStatus(t) >= 4, 35_000)
 
 		const headers = await view.findWebElements(By.css(".file-header"))
-		assert.ok(headers.length >= 4, `Expected ≥4 file headers, got ${headers.length}`)
+		assert.ok(
+			headers.length >= 4,
+			`Expected ≥4 file headers, got ${headers.length}`,
+		)
 
 		// Every header must have exactly one .file-icon child.
 		for (const header of headers) {
 			const icons = await header.findElements(By.css(".file-icon"))
-			assert.strictEqual(icons.length, 1, "Each file header should have exactly one icon")
+			assert.strictEqual(
+				icons.length,
+				1,
+				"Each file header should have exactly one icon",
+			)
 		}
 	})
 
@@ -62,7 +69,9 @@ describe("FullTab Search — file icons", () => {
 		const imgIcons = await view.findWebElements(By.css(".file-icon-img"))
 		const themeIconCount = fontIcons.length + imgIcons.length
 
-		const codicons = await view.findWebElements(By.css(".file-icon.codicon-file"))
+		const codicons = await view.findWebElements(
+			By.css(".file-icon.codicon-file"),
+		)
 
 		assert.ok(
 			themeIconCount > 0,
@@ -87,7 +96,9 @@ describe("FullTab Search — file icons", () => {
 		if (fontIcons.length < 2) {
 			// SVG-based theme active — icon diversity is expressed via src URL, skip color check.
 			const imgIcons = await view.findWebElements(By.css(".file-icon-img"))
-			const srcs = await Promise.all(imgIcons.map((el) => el.getAttribute("src")))
+			const srcs = await Promise.all(
+				imgIcons.map((el) => el.getAttribute("src")),
+			)
 			const uniqueSrcs = new Set(srcs)
 			assert.ok(
 				uniqueSrcs.size >= 2,
