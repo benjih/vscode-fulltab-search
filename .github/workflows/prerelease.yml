@@ -1,9 +1,8 @@
-name: Release
+name: Pre-release
 
 on:
   push:
-    tags:
-      - "v*"
+    branches: [main]
 
 jobs:
   build:
@@ -26,9 +25,11 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Set version from tag
+      - name: Set version
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          SHORT_SHA="${GITHUB_SHA::7}"
+          CURRENT_VERSION=$(jq -r '.version' package.json)
+          VERSION="v${CURRENT_VERSION}-${SHORT_SHA}"
           jq --arg v "$VERSION" '.version = $v' package.json > package.json.tmp
           mv package.json.tmp package.json
 
@@ -48,6 +49,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Compute version
+        id: version
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          CURRENT_VERSION=$(jq -r '.version' package.json)
+          echo "version=v${CURRENT_VERSION}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+
       - uses: actions/download-artifact@v4
         with:
           pattern: vsix-*
@@ -56,6 +64,7 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: ${{ github.ref_name }}
+          tag_name: ${{ steps.version.outputs.version }}
+          name: ${{ steps.version.outputs.version }}
+          prerelease: true
           files: "*.vsix"
