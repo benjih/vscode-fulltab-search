@@ -10,9 +10,7 @@ export function activate(context: vscode.ExtensionContext) {
 	initDebugOutput(context)
 	const openSearch = vscode.commands.registerCommand(
 		"fullTabSearch.open",
-		() => {
-			SearchPanel.show(context)
-		},
+		() => void SearchPanel.show(context),
 	)
 	const getDebugMetrics = vscode.commands.registerCommand(
 		"fullTabSearch.getDebugMetrics",
@@ -26,7 +24,7 @@ export function activate(context: vscode.ExtensionContext) {
 	)
 
 	const openAndCloseSidebar = () => {
-		SearchPanel.show(context)
+		void SearchPanel.show(context)
 		void vscode.commands.executeCommand("workbench.action.closeSidebar")
 	}
 	const activityViewProvider: vscode.WebviewViewProvider = {

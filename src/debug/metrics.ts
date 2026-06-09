@@ -22,6 +22,10 @@ export function initDebugOutput(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(outputChannel)
 }
 
+export function appendOutput(line: string): void {
+	outputChannel?.appendLine(line)
+}
+
 function isDebugEnabled(): boolean {
 	return vscode.workspace
 		.getConfiguration(CONFIG_SECTION)
