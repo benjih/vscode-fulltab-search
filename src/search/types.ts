@@ -90,6 +90,16 @@ export type WebviewMessage =
 			count: number
 	  }
 	| { type: "editLine"; file: string; line: number; newContent: string }
+	| {
+			type: "splitLine"
+			file: string
+			line: number
+			before: string
+			after: string
+	  }
+	| { type: "joinLines"; file: string; line: number; mergedContent: string }
+	| { type: "saveEdits" }
+	| { type: "tokenizeLine"; file: string; line: number; text: string }
 	| { type: "ready" }
 
 export type ExtensionMessage =
@@ -117,3 +127,11 @@ export type ExtensionMessage =
 			tokens: Array<{ matchId: number; tokens: TokenSpan[] }>
 	  }
 	| { type: "lineEdited"; file: string; line: number; newContent: string }
+	| { type: "editsSaved"; count: number }
+	| {
+			type: "lineTokens"
+			file: string
+			line: number
+			text: string
+			tokens: TokenSpan[]
+	  }
