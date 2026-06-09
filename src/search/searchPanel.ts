@@ -591,7 +591,7 @@ export class SearchPanel {
 		<div id="statusBar" class="status-bar"></div>
 		<div id="results" class="results"></div>
 	</div>
-	<script nonce="${nonce}" src="${scriptUri}"></script>
+	<script type="module" nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`
 	}
