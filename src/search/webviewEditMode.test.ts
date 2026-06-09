@@ -2,20 +2,14 @@
 
 // Tests for the edit-mode behavior of the webview script (media/search.js).
 //
-// The script is a plain browser script, not a module — it is executed here
-// inside a jsdom document built from the same element ids the panel HTML
-// provides, with acquireVsCodeApi stubbed to capture outgoing messages.
-// Tests drive it the way VS Code does: posting `message` events in and
-// asserting on the rendered DOM and the messages posted out.
+// The webview is a graph of ES modules with media/search.js as the entry
+// point. Each test imports the entry fresh (vi.resetModules) into a jsdom
+// document built from the same element ids the panel HTML provides, with
+// acquireVsCodeApi stubbed to capture outgoing messages. Tests drive it the
+// way VS Code does: posting `message` events in and asserting on the
+// rendered DOM and the messages posted out.
 
-import * as fs from "node:fs"
-import * as path from "node:path"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-
-const webviewSource = fs.readFileSync(
-	path.resolve(process.cwd(), "media", "search.js"),
-	"utf8",
-)
 
 // Mirrors the element ids rendered by SearchPanel.getHtml().
 const PANEL_SKELETON = `
@@ -90,7 +84,7 @@ function makeResults() {
 	}
 }
 
-function boot(): PostedMessage[] {
+async function boot(): Promise<PostedMessage[]> {
 	document.body.innerHTML = PANEL_SKELETON
 	const posted: PostedMessage[] = []
 	const globals = globalThis as Record<string, unknown>
@@ -103,7 +97,12 @@ function boot(): PostedMessage[] {
 		disconnect() {}
 	}
 	;(document as unknown as Record<string, unknown>).execCommand = vi.fn()
-	new Function(webviewSource)()
+	// Re-evaluate the module graph so each test gets fresh webview state.
+	// Listeners registered by earlier instances stay attached to the shared
+	// window/document, but they only reference DOM detached by the innerHTML
+	// reset above and post to discarded arrays, so they can't affect assertions.
+	vi.resetModules()
+	await import("../../media/search.js")
 	posted.length = 0 // discard the initial "ready" handshake
 	return posted
 }
@@ -180,9 +179,9 @@ function ofType(posted: PostedMessage[], type: string): PostedMessage[] {
 
 let posted: PostedMessage[]
 
-beforeEach(() => {
+beforeEach(async () => {
 	window.getSelection()?.removeAllRanges()
-	posted = boot()
+	posted = await boot()
 	deliver({ type: "results", results: makeResults() })
 })
 
