@@ -157,6 +157,7 @@ window.addEventListener("message", (event) => {
 		case "results": {
 			state.currentResults = message.results
 			rebuildMatchIndexes()
+			state.collapsedFiles.clear()
 			expandedSections.clear()
 			contextTokenCache.clear()
 			clearContextTokenRequests()

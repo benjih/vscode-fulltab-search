@@ -38,6 +38,8 @@ export const state = {
 	activeMatchIndex: 0,
 	/** @type {boolean} */
 	editMode: false,
+	/** @type {Set<string>} file paths whose result group is collapsed */
+	collapsedFiles: new Set(),
 }
 
 // Keyed by match ID. Tracks context lines that have been expanded beyond what
