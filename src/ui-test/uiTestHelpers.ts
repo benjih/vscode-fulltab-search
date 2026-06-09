@@ -52,12 +52,14 @@ export async function dismissBlockingDialogs(): Promise<void> {
 	}
 }
 
-export async function ensureFixtureWorkspaceOpen(): Promise<void> {
+export async function ensureFixtureWorkspaceOpen(
+	workspacePath: string = FIXTURE_WORKSPACE,
+): Promise<void> {
 	await dismissBlockingDialogs()
 
 	try {
 		const input = await InputBox.create()
-		await input.setText(FIXTURE_WORKSPACE)
+		await input.setText(workspacePath)
 		await input.confirm()
 		await new Promise((resolve) => setTimeout(resolve, 2000))
 		await dismissBlockingDialogs()
@@ -71,7 +73,7 @@ export async function ensureFixtureWorkspaceOpen(): Promise<void> {
 		try {
 			await workbench.executeCommand(command)
 			const input = await InputBox.create()
-			await input.setText(FIXTURE_WORKSPACE)
+			await input.setText(workspacePath)
 			await input.confirm()
 			await new Promise((resolve) => setTimeout(resolve, 2000))
 			await dismissBlockingDialogs()
@@ -81,7 +83,7 @@ export async function ensureFixtureWorkspaceOpen(): Promise<void> {
 		}
 	}
 
-	throw new Error(`Failed to open fixture workspace at ${FIXTURE_WORKSPACE}`)
+	throw new Error(`Failed to open fixture workspace at ${workspacePath}`)
 }
 
 export async function openFullTabSearchPanel(

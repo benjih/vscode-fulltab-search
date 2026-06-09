@@ -73,6 +73,7 @@
 		"test:unit:watch": "vitest",
 		"test:integration": "npm run compile && node ./out/test/runTest.js",
 		"test:ui": "npm run compile && EXTENSIONS_FOLDER=.test-extensions EXTENSION_DEV_PATH=. extest setup-and-run \"./out/ui-test/**/*.ui.test.js\" --code_version max --code_settings ./src/ui-test/ui-test-settings.json --extensions_dir .test-extensions --storage test-resources -m ./src/ui-test/.mocharc.json --open_resource ./src/test/fixtures/sample-workspace",
+		"demo:record": "npm run compile && node scripts/prepareDemo.mjs && EXTENSIONS_FOLDER=.test-extensions EXTENSION_DEV_PATH=. extest setup-and-run \"./out/ui-test/demo.recording.js\" --code_version max --code_settings ./src/ui-test/demo-settings.json --extensions_dir .test-extensions --storage test-resources -m ./src/ui-test/.mocharc.json --open_resource ./.demo-tmp && node scripts/buildDemoGif.mjs",
 		"vscode:prepublish": "npm run compile",
 		"package": "vsce package"
 	},
@@ -89,10 +90,12 @@
 		"@types/vscode": "^1.85.0",
 		"@vscode/test-electron": "2.4.1",
 		"@vscode/vsce": "^3.9.2",
+		"gifenc": "^1.0.3",
 		"glob": "11.1.0",
 		"jsdom": "29.1.1",
 		"knip": "6.16.1",
 		"mocha": "10.8.2",
+		"pngjs": "^7.0.0",
 		"typescript": "6.0.3",
 		"vitest": "4.1.8",
 		"vscode-extension-tester": "^8.23.0"
