@@ -64,7 +64,7 @@ jobs:
           else
             SHORT_SHA="${GITHUB_SHA::7}"
             CURRENT_VERSION=$(jq -r '.version' package.json)
-            echo "version=${CURRENT_VERSION}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+            echo "version=v${CURRENT_VERSION}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
           fi
 
