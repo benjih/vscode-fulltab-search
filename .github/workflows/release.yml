@@ -3,6 +3,8 @@ name: Release
 on:
   push:
     branches: [main]
+    tags:
+      - "v*"
 
 jobs:
   build:
@@ -25,12 +27,16 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Set version to commit SHA
+      - name: Set version
         run: |
-          SHORT_SHA="${GITHUB_SHA::7}"
-          CURRENT_VERSION=$(jq -r '.version' package.json)
-          NEW_VERSION="${CURRENT_VERSION}-${SHORT_SHA}"
-          jq --arg v "$NEW_VERSION" '.version = $v' package.json > package.json.tmp
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            SHORT_SHA="${GITHUB_SHA::7}"
+            CURRENT_VERSION=$(jq -r '.version' package.json)
+            VERSION="${CURRENT_VERSION}-${SHORT_SHA}"
+          fi
+          jq --arg v "$VERSION" '.version = $v' package.json > package.json.tmp
           mv package.json.tmp package.json
 
       - name: Build and package
@@ -49,12 +55,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Compute version
-        id: version
+      - name: Compute release metadata
+        id: meta
         run: |
-          SHORT_SHA="${GITHUB_SHA::7}"
-          CURRENT_VERSION=$(jq -r '.version' package.json)
-          echo "version=${CURRENT_VERSION}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          else
+            SHORT_SHA="${GITHUB_SHA::7}"
+            CURRENT_VERSION=$(jq -r '.version' package.json)
+            echo "version=${CURRENT_VERSION}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - uses: actions/download-artifact@v4
         with:
@@ -64,7 +76,7 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.version }}
-          name: ${{ steps.version.outputs.version }}
-          prerelease: true
+          tag_name: ${{ steps.meta.outputs.version }}
+          name: ${{ steps.meta.outputs.version }}
+          prerelease: ${{ steps.meta.outputs.prerelease }}
           files: "*.vsix"
