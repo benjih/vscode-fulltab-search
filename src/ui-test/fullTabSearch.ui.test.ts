@@ -39,9 +39,9 @@ describe("FullTab Search UI E2E", () => {
 		await new EditorView().closeAllEditors()
 	})
 
-	it("shows empty state before searching", async () => {
-		const empty = await view.findWebElement(By.css(".empty-state"))
-		assert.ok((await empty.getText()).includes("Enter a search query"))
+	it("shows the splash screen before searching", async () => {
+		const splash = await view.findWebElement(By.css(".splash"))
+		assert.ok((await splash.getText()).includes("Search your workspace"))
 	})
 
 	it("does not search while typing — only on Enter", async function () {

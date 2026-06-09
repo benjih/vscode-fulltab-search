@@ -36,6 +36,8 @@ let searchState = {
 let currentResults = null
 /** @type {Map<number, SearchMatch>} */
 let matchById = new Map()
+/** @type {Map<string, SearchMatch[]>} keyed by "file:lineNumber" — all matches on that line */
+let matchesByFileLine = new Map()
 /** @type {number} */
 let activeMatchIndex = 0
 
@@ -237,30 +239,39 @@ function renderTokenSpans(spans) {
 }
 
 /**
+ * Renders a line with every match occurrence on it highlighted.
  * @param {string} line
- * @param {number} start
- * @param {number} end
- * @param {boolean} isActive
+ * @param {Array<{ start: number; end: number; active: boolean }>} ranges
  * @param {TokenSpan[] | undefined} [tokens]
  */
-function renderLineContent(line, start, end, isActive, tokens) {
-	const highlightClass = isActive
-		? "match-highlight active-highlight"
-		: "match-highlight"
-	if (!tokens || tokens.length === 0) {
-		const before = escapeHtml(line.slice(0, start))
-		const match = escapeHtml(line.slice(start, end))
-		const after = escapeHtml(line.slice(end))
-		return `${before}<span class="${highlightClass}">${match}</span>${after}`
+function renderLineContent(line, ranges, tokens) {
+	const sorted = [...ranges].sort((a, b) => a.start - b.start)
+	const renderSlice = (from, to) =>
+		tokens && tokens.length > 0
+			? renderTokenSpans(sliceTokenSpans(tokens, from, to))
+			: escapeHtml(line.slice(from, to))
+
+	let html = ""
+	let pos = 0
+	for (const range of sorted) {
+		const highlightClass = range.active
+			? "match-highlight active-highlight"
+			: "match-highlight"
+		html += renderSlice(pos, range.start)
+		html += `<span class="${highlightClass}">${renderSlice(range.start, range.end)}</span>`
+		pos = range.end
 	}
-	const beforeSpans = sliceTokenSpans(tokens, 0, start)
-	const matchSpans = sliceTokenSpans(tokens, start, end)
-	const afterSpans = sliceTokenSpans(tokens, end, line.length)
-	return (
-		renderTokenSpans(beforeSpans) +
-		`<span class="${highlightClass}">${renderTokenSpans(matchSpans)}</span>` +
-		renderTokenSpans(afterSpans)
-	)
+	html += renderSlice(pos, line.length)
+	return html
+}
+
+/** @param {SearchMatch[]} lineMatches */
+function matchHighlightRanges(lineMatches) {
+	return lineMatches.map((m) => ({
+		start: m.matchStart,
+		end: m.matchEnd,
+		active: m.id === activeMatchIndex,
+	}))
 }
 
 /** @param {SearchMatch} match */
@@ -324,7 +335,7 @@ function groupMatchesIntoSections(matches) {
  * @param {string} file
  */
 function collectSectionLines(matches, file) {
-	/** @type {Map<number, { lineNumber: number; text: string; tokens: TokenSpan[] | undefined; match: SearchMatch | null }>} */
+	/** @type {Map<number, { lineNumber: number; text: string; tokens: TokenSpan[] | undefined; matches: SearchMatch[] }>} */
 	const byLine = new Map()
 
 	for (const match of matches) {
@@ -338,17 +349,23 @@ function collectSectionLines(matches, file) {
 					tokens:
 						contextLine.tokens ??
 						contextTokenCache.get(`${file}:${contextLine.line}`),
-					match: null,
+					matches: [],
 				})
 			}
 		}
 
-		if (!byLine.has(effective.line)) {
+		// A line can carry several matches (multiple occurrences of the
+		// pattern); collect them all so every occurrence gets highlighted.
+		const lineEntry = byLine.get(effective.line)
+		if (lineEntry) {
+			lineEntry.matches.push(match)
+			lineEntry.tokens = lineEntry.tokens ?? effective.tokens
+		} else {
 			byLine.set(effective.line, {
 				lineNumber: effective.line,
 				text: effective.lineText,
 				tokens: effective.tokens,
-				match,
+				matches: [match],
 			})
 		}
 
@@ -360,7 +377,7 @@ function collectSectionLines(matches, file) {
 					tokens:
 						contextLine.tokens ??
 						contextTokenCache.get(`${file}:${contextLine.line}`),
-					match: null,
+					matches: [],
 				})
 			}
 		}
@@ -480,13 +497,13 @@ function renderMatchSection(matches) {
 	snippet.className = "snippet"
 
 	for (const entry of lines) {
-		const match = entry.match
-		const isActive = match != null && match.id === activeMatchIndex
+		const lineMatches = entry.matches
+		const isActive = lineMatches.some((m) => m.id === activeMatchIndex)
 		const row = document.createElement("div")
 		row.className = `snippet-line${isActive ? " active" : ""}`
 
-		if (match) {
-			row.dataset.rowMatchId = String(match.id)
+		if (lineMatches.length > 0) {
+			row.dataset.rowMatchId = String(lineMatches[0].id)
 		} else {
 			row.dataset.contextLine = String(entry.lineNumber)
 		}
@@ -497,12 +514,10 @@ function renderMatchSection(matches) {
 
 		const content = document.createElement("span")
 		content.className = "line-content"
-		if (match) {
+		if (lineMatches.length > 0) {
 			content.innerHTML = renderLineContent(
 				entry.text,
-				match.matchStart,
-				match.matchEnd,
-				isActive,
+				matchHighlightRanges(lineMatches),
 				entry.tokens,
 			)
 		} else if (entry.tokens && entry.tokens.length > 0) {
@@ -514,7 +529,8 @@ function renderMatchSection(matches) {
 		row.appendChild(lineNumber)
 		row.appendChild(content)
 
-		if (match) {
+		if (lineMatches.length > 0) {
+			const match = lineMatches[0]
 			row.addEventListener("click", () => {
 				activeMatchIndex = match.id
 				updateMatchCounter()
@@ -747,13 +763,20 @@ window.addEventListener("message", (event) => {
 		case "searching":
 			setStatus("Searching…")
 			break
-		case "results":
+		case "results": {
 			currentResults = message.results
-			matchById = new Map(
-				currentResults.fileResults
-					.flatMap((f) => f.matches)
-					.map((m) => [m.id, m]),
-			)
+			const allMatches = currentResults.fileResults.flatMap((f) => f.matches)
+			matchById = new Map(allMatches.map((m) => [m.id, m]))
+			matchesByFileLine = new Map()
+			for (const m of allMatches) {
+				const key = `${m.file}:${m.line}`
+				const existing = matchesByFileLine.get(key)
+				if (existing) {
+					existing.push(m)
+				} else {
+					matchesByFileLine.set(key, [m])
+				}
+			}
 			expandedSections.clear()
 			contextTokenCache.clear()
 			contextTokenRequested.clear()
@@ -766,6 +789,7 @@ window.addEventListener("message", (event) => {
 					: `${message.results.total} result${message.results.total === 1 ? "" : "s"} in ${message.results.fileResults.length} file${message.results.fileResults.length === 1 ? "" : "s"}`,
 			)
 			break
+		}
 		case "error":
 			setStatus(message.message)
 			break
@@ -781,16 +805,20 @@ window.addEventListener("message", (event) => {
 				const match = matchById.get(matchId)
 				if (!match) continue
 				match.tokens = tokens
-				const row = resultsEl.querySelector(`[data-row-match-id="${matchId}"]`)
+				// The row carries the id of the first match on its line; resolve
+				// through the line's match list so any occurrence's tokens update it.
+				const lineMatches = matchesByFileLine.get(
+					`${match.file}:${match.line}`,
+				) ?? [match]
+				const row = resultsEl.querySelector(
+					`[data-row-match-id="${lineMatches[0].id}"]`,
+				)
 				if (!row) continue
 				const content = row.querySelector(".line-content")
 				if (!content) continue
-				const isActive = matchId === activeMatchIndex
 				content.innerHTML = renderLineContent(
 					match.lineText,
-					match.matchStart,
-					match.matchEnd,
-					isActive,
+					matchHighlightRanges(lineMatches),
 					tokens,
 				)
 			}

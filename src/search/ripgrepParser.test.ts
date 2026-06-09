@@ -110,6 +110,33 @@ describe("parseRipgrepLine", () => {
 		expect(state.matches[0].contextBefore[0].text).toBe("before")
 	})
 
+	it("emits one match per submatch when a line has multiple occurrences", () => {
+		const state = createRipgrepParseState()
+
+		parseRipgrepLine(
+			JSON.stringify({
+				type: "match",
+				data: {
+					path: { text: "/proj/src/a.ts" },
+					lines: { text: "needle and needle\n" },
+					line_number: 5,
+					submatches: [
+						{ start: 0, end: 6, match: { text: "needle" } },
+						{ start: 11, end: 17, match: { text: "needle" } },
+					],
+				},
+			}),
+			state,
+		)
+
+		expect(state.matches).toHaveLength(2)
+		expect(state.matches[0].matchStart).toBe(0)
+		expect(state.matches[0].matchEnd).toBe(6)
+		expect(state.matches[1].matchStart).toBe(11)
+		expect(state.matches[1].matchEnd).toBe(17)
+		expect(state.matches[1].line).toBe(5)
+	})
+
 	it("ignores invalid JSON lines", () => {
 		const state = createRipgrepParseState()
 		parseRipgrepLine("not json", state)
