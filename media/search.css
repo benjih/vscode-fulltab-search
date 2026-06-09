@@ -163,6 +163,10 @@ input {
 	border-bottom: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.2));
 }
 
+.status-bar:empty {
+	display: none;
+}
+
 .results {
 	flex: 1;
 	overflow: auto;
