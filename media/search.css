@@ -190,6 +190,7 @@ input {
 }
 
 .splash-icon {
+	/* biome-ignore lint/complexity/noImportantStyles: VSCode webview resets require !important */
 	font-size: 64px !important;
 	margin-bottom: 4px;
 }
