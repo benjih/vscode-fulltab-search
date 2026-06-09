@@ -191,10 +191,14 @@ export class SyntaxTokenizer {
 	 *
 	 * Groups must be sorted by startLine. startLine is 0-indexed.
 	 * Returns a map from 0-indexed line number to TokenSpan[].
+	 *
+	 * `fileLinesOverride` supplies the file content used for preamble state
+	 * (e.g. an unsaved document buffer); otherwise the file is read from disk.
 	 */
 	async tokenizeFileGroups(
 		groups: Array<{ startLine: number; lines: string[] }>,
 		filePath: string,
+		fileLinesOverride?: string[],
 	): Promise<Map<number, TokenSpan[]>> {
 		try {
 			const registry = await this.ensureRegistry()
@@ -210,11 +214,13 @@ export class SyntaxTokenizer {
 
 			const colorMap = registry.getColorMap()
 
-			let fileLines: string[] | null = null
-			try {
-				fileLines = fs.readFileSync(filePath, "utf8").split("\n")
-			} catch {
-				fileLines = null
+			let fileLines: string[] | null = fileLinesOverride ?? null
+			if (!fileLines) {
+				try {
+					fileLines = fs.readFileSync(filePath, "utf8").split("\n")
+				} catch {
+					fileLines = null
+				}
 			}
 
 			const result = new Map<number, TokenSpan[]>()

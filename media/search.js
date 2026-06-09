@@ -78,6 +78,387 @@ const contextObserver = new IntersectionObserver(
 	{ rootMargin: "200px" },
 )
 
+// ---- Edit mode: live re-tokenization with caret preservation ----
+// Editable lines keep their syntax-highlighted token spans in the DOM (a
+// contenteditable element is happy to host a caret across child spans). As
+// the user types we ask the extension to re-tokenize the new text (debounced)
+// and re-render the spans, restoring the caret by character offset — so the
+// line never degrades to plain text and editing feels like a real editor.
+
+const LIVE_TOKENIZE_DEBOUNCE_MS = 120
+
+/** @type {Map<string, ReturnType<typeof setTimeout>>} keyed by "file:lineNumber" */
+const liveTokenizeTimers = new Map()
+
+/**
+ * @param {HTMLElement} content
+ * @param {string} file
+ * @param {number} lineNumber
+ */
+function requestLineTokens(content, file, lineNumber) {
+	vscode.postMessage({
+		type: "tokenizeLine",
+		file,
+		line: lineNumber,
+		text: content.textContent ?? "",
+	})
+}
+
+/**
+ * @param {HTMLElement} content
+ * @param {string} file
+ * @param {number} lineNumber
+ */
+function scheduleLineTokens(content, file, lineNumber) {
+	const key = `${file}:${lineNumber}`
+	const pending = liveTokenizeTimers.get(key)
+	if (pending !== undefined) clearTimeout(pending)
+	liveTokenizeTimers.set(
+		key,
+		setTimeout(() => {
+			liveTokenizeTimers.delete(key)
+			requestLineTokens(content, file, lineNumber)
+		}, LIVE_TOKENIZE_DEBOUNCE_MS),
+	)
+}
+
+/** @param {string} file @param {number} lineNumber */
+function cancelScheduledLineTokens(file, lineNumber) {
+	const key = `${file}:${lineNumber}`
+	const pending = liveTokenizeTimers.get(key)
+	if (pending !== undefined) {
+		clearTimeout(pending)
+		liveTokenizeTimers.delete(key)
+	}
+}
+
+/**
+ * Character offset of (node, nodeOffset) within `el`.
+ * @param {HTMLElement} el
+ * @param {Node} node
+ * @param {number} nodeOffset
+ */
+function caretOffsetAt(el, node, nodeOffset) {
+	const measure = document.createRange()
+	measure.selectNodeContents(el)
+	measure.setEnd(node, nodeOffset)
+	return measure.toString().length
+}
+
+/**
+ * Character offset of the caret within `el`, or null if the caret is elsewhere.
+ * @param {HTMLElement} el
+ */
+function getCaretOffset(el) {
+	const selection = window.getSelection()
+	if (!selection || selection.rangeCount === 0) return null
+	const range = selection.getRangeAt(0)
+	if (!el.contains(range.endContainer)) return null
+	return caretOffsetAt(el, range.endContainer, range.endOffset)
+}
+
+/**
+ * Start/end character offsets of the current selection within `el`,
+ * or null if the selection is elsewhere.
+ * @param {HTMLElement} el
+ * @returns {{ start: number; end: number } | null}
+ */
+function getSelectionOffsets(el) {
+	const selection = window.getSelection()
+	if (!selection || selection.rangeCount === 0) return null
+	const range = selection.getRangeAt(0)
+	if (!el.contains(range.startContainer) || !el.contains(range.endContainer)) {
+		return null
+	}
+	return {
+		start: caretOffsetAt(el, range.startContainer, range.startOffset),
+		end: caretOffsetAt(el, range.endContainer, range.endOffset),
+	}
+}
+
+/**
+ * Places a collapsed caret at character offset `offset` within `el`.
+ * @param {HTMLElement} el
+ * @param {number} offset
+ */
+function setCaretOffset(el, offset) {
+	const selection = window.getSelection()
+	if (!selection) return
+	const range = document.createRange()
+	let remaining = offset
+	const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+	let node = walker.nextNode()
+	while (node) {
+		const length = node.textContent?.length ?? 0
+		if (remaining <= length) {
+			range.setStart(node, remaining)
+			range.collapse(true)
+			selection.removeAllRanges()
+			selection.addRange(range)
+			return
+		}
+		remaining -= length
+		node = walker.nextNode()
+	}
+	range.selectNodeContents(el)
+	range.collapse(false)
+	selection.removeAllRanges()
+	selection.addRange(range)
+}
+
+/**
+ * Finds the rendered .line-content element for file:lineNumber, whether the
+ * line is a match row or a context row.
+ * @param {string} file
+ * @param {number} lineNumber
+ * @returns {HTMLElement | null}
+ */
+function findLineContent(file, lineNumber) {
+	const lineMatches = matchesByFileLine.get(`${file}:${lineNumber}`)
+	for (const block of resultsEl.querySelectorAll(".match-block")) {
+		if (/** @type {HTMLElement} */ (block).dataset.file !== file) continue
+		const row =
+			block.querySelector(`[data-context-line="${lineNumber}"]`) ??
+			(lineMatches
+				? block.querySelector(`[data-row-match-id="${lineMatches[0].id}"]`)
+				: null)
+		if (row) {
+			return /** @type {HTMLElement | null} */ (
+				row.querySelector(".line-content")
+			)
+		}
+	}
+	return null
+}
+
+// Commits any in-progress line edit (blur triggers the save-on-change path).
+function blurActiveEditableLine() {
+	const active = /** @type {HTMLElement | null} */ (document.activeElement)
+	if (
+		active?.classList.contains("line-content") &&
+		active.hasAttribute("contenteditable")
+	) {
+		active.blur()
+	}
+}
+
+// Per-line commit functions, so Ctrl/Cmd+S can flush the focused line's
+// pending edit without blurring it.
+/** @type {WeakMap<HTMLElement, () => boolean>} */
+const lineCommitters = new WeakMap()
+
+function flushActiveLineEdit() {
+	const active = /** @type {HTMLElement | null} */ (document.activeElement)
+	if (active) lineCommitters.get(active)?.()
+}
+
+// Rebuilds matchById / matchesByFileLine, e.g. after line numbers shift.
+function rebuildMatchIndexes() {
+	const allMatches = currentResults
+		? currentResults.fileResults.flatMap((f) => f.matches)
+		: []
+	matchById = new Map(allMatches.map((m) => [m.id, m]))
+	matchesByFileLine = new Map()
+	for (const m of allMatches) {
+		const key = `${m.file}:${m.line}`
+		const existing = matchesByFileLine.get(key)
+		if (existing) {
+			existing.push(m)
+		} else {
+			matchesByFileLine.set(key, [m])
+		}
+	}
+}
+
+/**
+ * Shifts cached context tokens for `file` below `fromLine` by `delta` lines.
+ * @param {string} file
+ * @param {number} fromLine
+ * @param {number} delta
+ */
+function shiftContextTokenCache(file, fromLine, delta) {
+	/** @type {Array<[number, TokenSpan[]]>} */
+	const moved = []
+	for (const [key, tokens] of contextTokenCache) {
+		const sep = key.lastIndexOf(":")
+		if (key.slice(0, sep) !== file) continue
+		const line = Number(key.slice(sep + 1))
+		if (line > fromLine) {
+			moved.push([line, tokens])
+			contextTokenCache.delete(key)
+		}
+	}
+	for (const [line, tokens] of moved) {
+		contextTokenCache.set(`${file}:${line + delta}`, tokens)
+	}
+}
+
+/**
+ * Text of `file`:`lineNumber` if that line is part of the rendered results
+ * (as a match line or context line), else null.
+ * @param {string} file
+ * @param {number} lineNumber
+ * @returns {string | null}
+ */
+function getVisibleLineText(file, lineNumber) {
+	const lineMatches = matchesByFileLine.get(`${file}:${lineNumber}`)
+	if (lineMatches && lineMatches.length > 0) return lineMatches[0].lineText
+	if (!currentResults) return null
+	for (const fileResult of currentResults.fileResults) {
+		if (fileResult.file !== file) continue
+		for (const match of fileResult.matches) {
+			const expanded = expandedSections.get(match.id)
+			const contextArrays = [match.contextBefore, match.contextAfter]
+			if (expanded) {
+				contextArrays.push(expanded.contextBefore, expanded.contextAfter)
+			}
+			for (const arr of contextArrays) {
+				const ctx = arr.find((c) => c.line === lineNumber)
+				if (ctx) return ctx.text
+			}
+		}
+	}
+	return null
+}
+
+/**
+ * Removes `lineNumber` from the local result model, merging its text into the
+ * line above (`merged` = previous text + current text) and shifting all
+ * subsequent line numbers in `file` up by one — mirroring the line break the
+ * extension deletes from the document.
+ * @param {string} file
+ * @param {number} lineNumber
+ * @param {string} merged
+ * @param {number} prevLength length of the previous line's text before the join
+ */
+function joinLineIntoPrevious(file, lineNumber, merged, prevLength) {
+	if (!currentResults) return
+	contextTokenCache.delete(`${file}:${lineNumber - 1}`)
+	contextTokenCache.delete(`${file}:${lineNumber}`)
+	shiftContextTokenCache(file, lineNumber, -1)
+
+	/** @param {ContextLine[]} arr */
+	const transformContextArray = (arr) => {
+		for (let i = arr.length - 1; i >= 0; i--) {
+			const ctx = arr[i]
+			if (ctx.line === lineNumber) {
+				arr.splice(i, 1)
+			} else if (ctx.line === lineNumber - 1) {
+				ctx.text = merged
+				ctx.tokens = undefined
+			} else if (ctx.line > lineNumber) {
+				ctx.line -= 1
+			}
+		}
+	}
+
+	for (const fileResult of currentResults.fileResults) {
+		if (fileResult.file !== file) continue
+		for (const match of fileResult.matches) {
+			const expanded = expandedSections.get(match.id)
+			const contextArrays = [match.contextBefore, match.contextAfter]
+			if (expanded) {
+				contextArrays.push(expanded.contextBefore, expanded.contextAfter)
+			}
+			if (match.line === lineNumber) {
+				// The match's line was absorbed into the one above it.
+				match.line = lineNumber - 1
+				match.lineText = merged
+				match.matchStart += prevLength
+				match.matchEnd += prevLength
+				match.column += prevLength
+				match.tokens = undefined
+			} else if (match.line === lineNumber - 1) {
+				match.lineText = merged
+				match.tokens = undefined
+			} else if (match.line > lineNumber) {
+				match.line -= 1
+			}
+			for (const arr of contextArrays) {
+				transformContextArray(arr)
+			}
+		}
+	}
+	rebuildMatchIndexes()
+}
+
+/**
+ * Inserts a new line with `text` immediately after `lineNumber` in the local
+ * result model, shifting all subsequent line numbers in `file` down by one —
+ * mirroring the line break the extension inserts into the document.
+ * @param {string} file
+ * @param {number} lineNumber
+ * @param {string} text
+ */
+function insertLineAfter(file, lineNumber, text) {
+	if (!currentResults) return
+	shiftContextTokenCache(file, lineNumber, 1)
+	for (const fileResult of currentResults.fileResults) {
+		if (fileResult.file !== file) continue
+		for (const match of fileResult.matches) {
+			const expanded = expandedSections.get(match.id)
+			const contextArrays = [match.contextBefore, match.contextAfter]
+			if (expanded) {
+				contextArrays.push(expanded.contextBefore, expanded.contextAfter)
+			}
+			if (match.line > lineNumber) match.line += 1
+			for (const arr of contextArrays) {
+				for (const ctx of arr) {
+					if (ctx.line > lineNumber) ctx.line += 1
+				}
+			}
+			// The new line becomes a context line directly below the split line,
+			// in every copy of the context that contains it.
+			if (match.line === lineNumber) {
+				match.contextAfter.unshift({ line: lineNumber + 1, text })
+				if (expanded) {
+					expanded.contextAfter.unshift({ line: lineNumber + 1, text })
+				}
+			}
+			for (const arr of contextArrays) {
+				const idx = arr.findIndex((ctx) => ctx.line === lineNumber)
+				if (idx !== -1) arr.splice(idx + 1, 0, { line: lineNumber + 1, text })
+			}
+		}
+	}
+	rebuildMatchIndexes()
+}
+
+/**
+ * Stores freshly tokenized spans back into the result model and context cache
+ * so later re-renders keep the highlighting. Guarded by text equality so a
+ * stale response never attaches to newer content.
+ * @param {string} file
+ * @param {number} lineNumber
+ * @param {string} text
+ * @param {TokenSpan[]} tokens
+ */
+function storeLineTokens(file, lineNumber, text, tokens) {
+	contextTokenCache.set(`${file}:${lineNumber}`, tokens)
+	if (!currentResults) return
+	for (const fileResult of currentResults.fileResults) {
+		if (fileResult.file !== file) continue
+		for (const match of fileResult.matches) {
+			if (match.line === lineNumber && match.lineText === text) {
+				match.tokens = tokens
+			}
+			for (const ctx of [...match.contextBefore, ...match.contextAfter]) {
+				if (ctx.line === lineNumber && ctx.text === text) {
+					ctx.tokens = tokens
+				}
+			}
+		}
+	}
+	for (const [matchId, expanded] of expandedSections) {
+		if (matchById.get(matchId)?.file !== file) continue
+		for (const ctx of [...expanded.contextBefore, ...expanded.contextAfter]) {
+			if (ctx.line === lineNumber && ctx.text === text) {
+				ctx.tokens = tokens
+			}
+		}
+	}
+}
+
 const patternInput = /** @type {HTMLInputElement} */ (
 	document.getElementById("patternInput")
 )
@@ -173,8 +554,7 @@ function flattenMatches() {
 }
 
 function focusMatch(index) {
-	const active = /** @type {HTMLElement | null} */ (document.activeElement)
-	if (active?.contentEditable === "true") active.blur()
+	blurActiveEditableLine()
 	const matches = flattenMatches()
 	if (matches.length === 0) {
 		activeMatchIndex = 0
@@ -512,12 +892,102 @@ function updateLineInDataModel(file, lineNumber, newText) {
 			}
 		}
 	}
+	for (const [matchId, expanded] of expandedSections) {
+		if (matchById.get(matchId)?.file !== file) continue
+		for (const ctx of [...expanded.contextBefore, ...expanded.contextAfter]) {
+			if (ctx.line === lineNumber) {
+				ctx.text = newText
+				ctx.tokens = undefined
+			}
+		}
+	}
 	contextTokenCache.delete(`${file}:${lineNumber}`)
+}
+
+/**
+ * Splits an edited line at the caret (replacing any selection), Zed-style:
+ * the extension replaces the document line with two lines, the local model
+ * shifts subsequent line numbers, and focus moves to the start of the new line.
+ * @param {HTMLElement} content
+ * @param {{ baseline: string }} editState
+ * @param {string} file
+ * @param {number} lineNumber
+ */
+function handleLineSplit(content, editState, file, lineNumber) {
+	cancelScheduledLineTokens(file, lineNumber)
+	const text = content.textContent ?? ""
+	const offsets = getSelectionOffsets(content) ?? {
+		start: text.length,
+		end: text.length,
+	}
+	const before = text.slice(0, Math.min(offsets.start, offsets.end))
+	const after = text.slice(Math.max(offsets.start, offsets.end))
+	// Neutralize the blur-commit — the split message carries the full edit.
+	editState.baseline = text
+	delete content.dataset.savedHtml
+	vscode.postMessage({
+		type: "splitLine",
+		file,
+		line: lineNumber,
+		before,
+		after,
+	})
+	updateLineInDataModel(file, lineNumber, before)
+	insertLineAfter(file, lineNumber, after)
+	renderResults()
+	const newContent = findLineContent(file, lineNumber + 1)
+	if (newContent) {
+		newContent.focus()
+		setCaretOffset(newContent, 0)
+		requestLineTokens(newContent, file, lineNumber + 1)
+	}
+	const beforeContent = findLineContent(file, lineNumber)
+	if (beforeContent) requestLineTokens(beforeContent, file, lineNumber)
+}
+
+/**
+ * Backspace at the start of a line: joins the line into the one above,
+ * deleting the line break. Clamped at the edge of the visible excerpt — if
+ * the previous line isn't part of the results, nothing happens. Returns
+ * whether the join was performed.
+ * @param {HTMLElement} content
+ * @param {{ baseline: string }} editState
+ * @param {string} file
+ * @param {number} lineNumber
+ */
+function handleLineJoin(content, editState, file, lineNumber) {
+	if (lineNumber < 2) return false
+	const prevText = getVisibleLineText(file, lineNumber - 1)
+	if (prevText === null) return false
+	cancelScheduledLineTokens(file, lineNumber)
+	cancelScheduledLineTokens(file, lineNumber - 1)
+	const curText = content.textContent ?? ""
+	const merged = prevText + curText
+	// Neutralize the blur-commit — the join message carries the full edit.
+	editState.baseline = curText
+	delete content.dataset.savedHtml
+	vscode.postMessage({
+		type: "joinLines",
+		file,
+		line: lineNumber,
+		mergedContent: merged,
+	})
+	joinLineIntoPrevious(file, lineNumber, merged, prevText.length)
+	renderResults()
+	const mergedContent = findLineContent(file, lineNumber - 1)
+	if (mergedContent) {
+		mergedContent.focus()
+		setCaretOffset(mergedContent, prevText.length)
+		requestLineTokens(mergedContent, file, lineNumber - 1)
+	}
+	return true
 }
 
 /** @param {SearchMatch[]} matches */
 function renderMatchSection(matches) {
-	const _vscode = /** @type {{ postMessage(msg: unknown): void }} */ (/** @type {unknown} */ (vscode))
+	const _vscode = /** @type {{ postMessage(msg: unknown): void }} */ (
+		/** @type {unknown} */ (vscode)
+	)
 	const firstMatch = matches[0]
 	const lastMatch = matches[matches.length - 1]
 	const file = firstMatch.file
@@ -571,26 +1041,57 @@ function renderMatchSection(matches) {
 		const match = lineMatches.length > 0 ? lineMatches[0] : null
 
 		if (editMode) {
-			const rawText = entry.text
-			content.contentEditable = "true"
+			const originalText = entry.text
+			// `baseline` is the last text applied to the document for this line;
+			// commits diff against it so flushing (Ctrl/Cmd+S) and blur never
+			// double-apply the same edit.
+			const editState = { baseline: entry.text }
+			// "plaintext-only" keeps the highlighted token spans in place while
+			// making the line editable: the caret moves through the spans, typed
+			// characters merge into the surrounding text nodes, and pasted
+			// content is stripped to plain text.
+			content.setAttribute("contenteditable", "plaintext-only")
 			content.spellcheck = false
+
+			// Applies the current text to the document buffer (not disk) if it
+			// changed since the last commit. Returns whether an edit was sent.
+			const commitLine = () => {
+				const newText = content.textContent ?? ""
+				if (newText === editState.baseline) return false
+				editState.baseline = newText
+				updateLineInDataModel(file, entry.lineNumber, newText)
+				_vscode.postMessage({
+					type: "editLine",
+					file,
+					line: entry.lineNumber,
+					newContent: newText,
+				})
+				// Re-tokenize the committed text so the rendered spans and the
+				// result model regain accurate highlighting.
+				requestLineTokens(content, file, entry.lineNumber)
+				return true
+			}
+			lineCommitters.set(content, commitLine)
 
 			content.addEventListener("focus", () => {
 				content.dataset.savedHtml = content.innerHTML
-				if (content.querySelector("span")) {
-					content.textContent = content.textContent ?? rawText
-				}
+			})
+
+			content.addEventListener("input", () => {
+				scheduleLineTokens(content, file, entry.lineNumber)
 			})
 
 			content.addEventListener("blur", () => {
-				const savedHtml = content.dataset.savedHtml ?? ""
-				const newText = content.textContent ?? ""
+				cancelScheduledLineTokens(file, entry.lineNumber)
+				const savedHtml = content.dataset.savedHtml
 				delete content.dataset.savedHtml
-				if (newText !== rawText) {
-					updateLineInDataModel(file, entry.lineNumber, newText)
-					_vscode.postMessage({ type: "editLine", file, line: entry.lineNumber, newContent: newText })
-					content.textContent = newText
-				} else {
+				if (
+					!commitLine() &&
+					editState.baseline === originalText &&
+					savedHtml !== undefined
+				) {
+					// Untouched this session: restore the original spans, incl.
+					// match highlights.
 					content.innerHTML = savedHtml
 				}
 			})
@@ -598,20 +1099,37 @@ function renderMatchSection(matches) {
 			content.addEventListener("keydown", (e) => {
 				if (e.key === "Enter") {
 					e.preventDefault()
-					content.blur()
+					handleLineSplit(content, editState, file, entry.lineNumber)
 				} else if (e.key === "Escape") {
 					e.preventDefault()
 					const savedHtml = content.dataset.savedHtml
-					if (savedHtml !== undefined) {
+					if (savedHtml !== undefined && editState.baseline === originalText) {
+						// Nothing committed this session: restore the original spans.
 						content.innerHTML = savedHtml
-						delete content.dataset.savedHtml
+					} else if ((content.textContent ?? "") !== editState.baseline) {
+						// Something was already committed (e.g. via Ctrl/Cmd+S):
+						// discard only the typing since that commit.
+						content.textContent = editState.baseline
+						requestLineTokens(content, file, entry.lineNumber)
 					}
 					content.blur()
+				} else if (e.key === "Backspace") {
+					const offsets = getSelectionOffsets(content)
+					// Only intercept a collapsed caret at the very start of the
+					// line; everything else is normal in-line deletion.
+					if (
+						offsets &&
+						offsets.start === 0 &&
+						offsets.end === 0 &&
+						handleLineJoin(content, editState, file, entry.lineNumber)
+					) {
+						e.preventDefault()
+					}
+				} else if (e.key === "Tab") {
+					e.preventDefault()
+					document.execCommand("insertText", false, "\t")
 				}
 			})
-
-			// Prevent bubbling so clicking the content doesn't open the file.
-			content.addEventListener("click", (e) => e.stopPropagation())
 
 			if (match) {
 				lineNumber.addEventListener("click", () => {
@@ -814,8 +1332,7 @@ prevMatch.addEventListener("click", () => focusMatch(activeMatchIndex - 1))
 nextMatch.addEventListener("click", () => focusMatch(activeMatchIndex + 1))
 
 editToggle.addEventListener("click", () => {
-	const active = /** @type {HTMLElement | null} */ (document.activeElement)
-	if (active?.contentEditable === "true") active.blur()
+	blurActiveEditableLine()
 	editMode = !editMode
 	editToggle.classList.toggle("active", editMode)
 	renderResults()
@@ -848,6 +1365,12 @@ document.addEventListener("keydown", (event) => {
 		event.preventDefault()
 		focusMatch(activeMatchIndex + (event.shiftKey ? -1 : 1))
 	}
+	if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+		event.preventDefault()
+		// Commit the focused line first so the save includes what's being typed.
+		flushActiveLineEdit()
+		vscode.postMessage({ type: "saveEdits" })
+	}
 })
 
 // IPC bridge — receives messages posted by the extension host via webview.postMessage().
@@ -872,18 +1395,7 @@ window.addEventListener("message", (event) => {
 			break
 		case "results": {
 			currentResults = message.results
-			const allMatches = currentResults.fileResults.flatMap((f) => f.matches)
-			matchById = new Map(allMatches.map((m) => [m.id, m]))
-			matchesByFileLine = new Map()
-			for (const m of allMatches) {
-				const key = `${m.file}:${m.line}`
-				const existing = matchesByFileLine.get(key)
-				if (existing) {
-					existing.push(m)
-				} else {
-					matchesByFileLine.set(key, [m])
-				}
-			}
+			rebuildMatchIndexes()
 			expandedSections.clear()
 			contextTokenCache.clear()
 			contextTokenRequested.clear()
@@ -942,7 +1454,11 @@ window.addEventListener("message", (event) => {
 					const row = block.querySelector(`[data-context-line="${line}"]`)
 					if (!row) continue
 					const content = row.querySelector(".line-content")
-					if (content && content !== document.activeElement && tokens.length > 0) {
+					if (
+						content &&
+						content !== document.activeElement &&
+						tokens.length > 0
+					) {
 						content.innerHTML = renderTokenSpans(tokens)
 					}
 				}
@@ -950,8 +1466,30 @@ window.addEventListener("message", (event) => {
 			break
 		}
 		case "lineEdited":
-			setStatus(`Saved line ${message.line}`)
+			setStatus("Unsaved changes — press Ctrl/Cmd+S to save")
 			break
+		case "editsSaved":
+			setStatus(
+				message.count > 0
+					? `Saved ${message.count} file${message.count === 1 ? "" : "s"}`
+					: "No unsaved changes",
+			)
+			break
+		case "lineTokens": {
+			const content = findLineContent(message.file, message.line)
+			if (!content) break
+			// Stale response — the line changed again since this was requested.
+			if ((content.textContent ?? "") !== message.text) break
+			storeLineTokens(message.file, message.line, message.text, message.tokens)
+			const focused = content === document.activeElement
+			const caret = focused ? getCaretOffset(content) : null
+			content.innerHTML =
+				message.tokens.length > 0
+					? renderTokenSpans(message.tokens)
+					: escapeHtml(message.text)
+			if (focused && caret !== null) setCaretOffset(content, caret)
+			break
+		}
 		case "expanded": {
 			const match = flattenMatches().find(
 				(entry) => entry.id === message.matchId,

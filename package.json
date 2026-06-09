@@ -90,6 +90,7 @@
 		"@vscode/test-electron": "2.4.1",
 		"@vscode/vsce": "^3.9.2",
 		"glob": "11.0.3",
+		"jsdom": "29.1.1",
 		"knip": "6.16.1",
 		"mocha": "10.7.3",
 		"typescript": "6.0.3",

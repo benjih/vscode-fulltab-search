@@ -3,6 +3,7 @@ import * as vscode from "vscode"
 import { createTimer, searchQueryDetails } from "../debug/metrics"
 import { SyntaxTokenizer } from "../syntax/tokenizer"
 import { FileIconResolver } from "./fileIconResolver"
+import { applyLineEdit, applyLineJoin, applyLineSplit } from "./lineEdits"
 import { SearchEngine, saveEditedDocuments } from "./searchEngine"
 import type {
 	ContextLine,
@@ -23,6 +24,8 @@ export class SearchPanel {
 	private readonly tokenizer: SyntaxTokenizer
 	private queryCounter = 0
 	private tokenizationQueryId: string | null = null
+	// Files with edits applied to their (dirty) documents but not yet saved.
+	private readonly pendingEditUris = new Map<string, vscode.Uri>()
 	private searchTokenSource: vscode.CancellationTokenSource | null = null
 
 	private constructor(
@@ -138,6 +141,23 @@ export class SearchPanel {
 				break
 			case "editLine":
 				await this.editLine(message.file, message.line, message.newContent)
+				break
+			case "splitLine":
+				await this.splitLine(
+					message.file,
+					message.line,
+					message.before,
+					message.after,
+				)
+				break
+			case "joinLines":
+				await this.joinLines(message.file, message.line, message.mergedContent)
+				break
+			case "saveEdits":
+				await this.saveEdits()
+				break
+			case "tokenizeLine":
+				await this.tokenizeLine(message.file, message.line, message.text)
 				break
 		}
 	}
@@ -418,19 +438,76 @@ export class SearchPanel {
 		this.postMessage({ type: "replaced", count: 1 })
 	}
 
+	// Edits are applied to the in-memory document (leaving it dirty, like
+	// typing in an editor) and only written to disk by an explicit saveEdits.
 	private async editLine(
 		file: string,
 		line: number,
 		newContent: string,
 	): Promise<void> {
-		const uri = vscode.Uri.file(file)
-		const document = await vscode.workspace.openTextDocument(uri)
-		const lineAt = document.lineAt(line - 1)
-		const edit = new vscode.WorkspaceEdit()
-		edit.replace(uri, lineAt.range, newContent)
-		await vscode.workspace.applyEdit(edit)
-		await document.save()
+		const uri = await applyLineEdit(file, line, newContent)
+		this.pendingEditUris.set(uri.toString(), uri)
 		this.postMessage({ type: "lineEdited", file, line, newContent })
+	}
+
+	private async splitLine(
+		file: string,
+		line: number,
+		before: string,
+		after: string,
+	): Promise<void> {
+		const uri = await applyLineSplit(file, line, before, after)
+		this.pendingEditUris.set(uri.toString(), uri)
+		this.postMessage({ type: "lineEdited", file, line, newContent: before })
+	}
+
+	private async joinLines(
+		file: string,
+		line: number,
+		mergedContent: string,
+	): Promise<void> {
+		const uri = await applyLineJoin(file, line, mergedContent)
+		if (!uri) return
+		this.pendingEditUris.set(uri.toString(), uri)
+		this.postMessage({
+			type: "lineEdited",
+			file,
+			line: line - 1,
+			newContent: mergedContent,
+		})
+	}
+
+	private async saveEdits(): Promise<void> {
+		const uris = [...this.pendingEditUris.values()]
+		this.pendingEditUris.clear()
+		await saveEditedDocuments(uris)
+		this.postMessage({ type: "editsSaved", count: uris.length })
+	}
+
+	// Re-tokenizes a single line as it is edited in the webview. The text comes
+	// from the webview (it may not be on disk yet); preamble grammar state is
+	// built from the open document buffer when available — disk may be stale
+	// while edits are pending — falling back to the file on disk.
+	private async tokenizeLine(
+		file: string,
+		line: number,
+		text: string,
+	): Promise<void> {
+		const openDocument = vscode.workspace.textDocuments.find(
+			(doc) => doc.uri.fsPath === file,
+		)
+		const tokensByLine = await this.tokenizer.tokenizeFileGroups(
+			[{ startLine: line - 1, lines: [text] }],
+			file,
+			openDocument?.getText().split("\n"),
+		)
+		this.postMessage({
+			type: "lineTokens",
+			file,
+			line,
+			text,
+			tokens: tokensByLine.get(line - 1) ?? [],
+		})
 	}
 
 	private persistState(state: SearchState): void {

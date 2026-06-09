@@ -359,11 +359,24 @@ input {
 }
 
 .edit-mode .snippet-line {
-	cursor: default;
+	cursor: text;
 }
 
 .snippet-line:hover {
 	background: var(--vscode-list-hoverBackground);
+}
+
+/* In edit mode the focused row gets the editor's current-line highlight
+   instead of hover/outline chrome, mirroring a real editor. */
+.edit-mode .snippet-line:hover {
+	background: transparent;
+}
+
+.edit-mode .snippet-line:focus-within {
+	background: var(
+		--vscode-editor-lineHighlightBackground,
+		var(--vscode-list-hoverBackground)
+	);
 }
 
 .snippet-line.active {
@@ -397,14 +410,11 @@ input {
 	border-radius: 2px;
 }
 
-.edit-mode .line-content[contenteditable="true"] {
+.edit-mode .line-content[contenteditable] {
+	/* Fill the row so a click anywhere on the line places the caret. */
+	flex: 1;
 	cursor: text;
 	caret-color: var(--vscode-editorCursor-foreground, currentColor);
-}
-
-.edit-mode .line-content[contenteditable="true"]:focus {
-	outline: 1px solid var(--vscode-focusBorder, #007fd4);
-	background: color-mix(in srgb, var(--vscode-focusBorder, #007fd4) 8%, transparent);
 }
 
 .match-highlight {
