@@ -196,7 +196,22 @@ input {
 }
 
 .file-icon {
-	opacity: 0.8;
+	flex-shrink: 0;
+	margin-right: 6px;
+}
+
+.file-icon-img {
+	width: 16px;
+	height: 16px;
+	display: block;
+}
+
+.file-icon-font {
+	display: inline-block;
+	width: 16px;
+	font-size: 16px;
+	line-height: 1;
+	text-align: center;
 }
 
 .file-name {

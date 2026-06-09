@@ -35,11 +35,19 @@ export interface SearchMatch {
 	tokens?: TokenSpan[]
 }
 
+export interface FileIconFont {
+	family: string
+	char: string
+	color: string
+}
+
 export interface FileResult {
 	file: string
 	relativePath: string
 	directory: string
 	fileName: string
+	iconUri?: string
+	iconFont?: FileIconFont
 	matches: SearchMatch[]
 }
 

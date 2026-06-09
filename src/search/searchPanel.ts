@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto"
 import * as vscode from "vscode"
 import { createTimer, searchQueryDetails } from "../debug/metrics"
 import { SyntaxTokenizer } from "../syntax/tokenizer"
+import { FileIconResolver } from "./fileIconResolver"
 import { SearchEngine } from "./searchEngine"
 import type {
 	ContextLine,
@@ -30,12 +31,14 @@ export class SearchPanel {
 		private readonly extensionUri: vscode.Uri,
 		private readonly globalState: vscode.Memento,
 		disposables: vscode.Disposable[],
+		private readonly iconResolver: FileIconResolver,
 	) {
 		this.panel = panel
 		this.lastState = globalState.get<SearchState | null>(STATE_KEY, null)
 		this.tokenizer = new SyntaxTokenizer(extensionUri, disposables)
 
-		this.panel.webview.html = this.getHtml()
+		const fontFaceCss = iconResolver.generateFontFaceCss(this.panel.webview)
+		this.panel.webview.html = this.getHtml(fontFaceCss)
 		this.panel.webview.onDidReceiveMessage(
 			(message) => void this.handleMessage(message as WebviewMessage),
 			undefined,
@@ -51,11 +54,27 @@ export class SearchPanel {
 		)
 	}
 
-	static show(context: vscode.ExtensionContext): void {
+	static async show(context: vscode.ExtensionContext): Promise<void> {
 		if (SearchPanel.currentPanel) {
 			SearchPanel.currentPanel.panel.reveal(vscode.ViewColumn.One)
 			return
 		}
+
+		const iconResolver = new FileIconResolver()
+		await iconResolver.load()
+
+		const localResourceRoots = [
+			vscode.Uri.joinPath(context.extensionUri, "media"),
+			vscode.Uri.joinPath(
+				context.extensionUri,
+				"node_modules",
+				"@vscode",
+				"codicons",
+				"dist",
+			),
+		]
+		const iconRoot = iconResolver.getLocalResourceRoot()
+		if (iconRoot) localResourceRoots.push(iconRoot)
 
 		const panel = vscode.window.createWebviewPanel(
 			VIEW_TYPE,
@@ -64,16 +83,7 @@ export class SearchPanel {
 			{
 				enableScripts: true,
 				retainContextWhenHidden: true,
-				localResourceRoots: [
-					vscode.Uri.joinPath(context.extensionUri, "media"),
-					vscode.Uri.joinPath(
-						context.extensionUri,
-						"node_modules",
-						"@vscode",
-						"codicons",
-						"dist",
-					),
-				],
+				localResourceRoots,
 			},
 		)
 
@@ -82,6 +92,7 @@ export class SearchPanel {
 			context.extensionUri,
 			context.globalState,
 			context.subscriptions,
+			iconResolver,
 		)
 	}
 
@@ -222,6 +233,18 @@ export class SearchPanel {
 			results.fileResults.sort((a, b) =>
 				a.relativePath.localeCompare(b.relativePath),
 			)
+			for (const fileResult of results.fileResults) {
+				const uri = this.iconResolver.resolveWebviewUri(
+					fileResult.fileName,
+					this.panel.webview,
+				)
+				if (uri) {
+					fileResult.iconUri = uri
+				} else {
+					const font = this.iconResolver.resolveIconFont(fileResult.fileName)
+					if (font) fileResult.iconFont = font
+				}
+			}
 			let idCounter = 0
 			for (const fileResult of results.fileResults) {
 				for (const match of fileResult.matches) {
@@ -402,7 +425,7 @@ export class SearchPanel {
 		this.tokenizationQueryId = null
 	}
 
-	private getHtml(): string {
+	private getHtml(fontFaceCss: string | null = null): string {
 		const webview = this.panel.webview
 		const styleUri = webview.asWebviewUri(
 			vscode.Uri.joinPath(this.extensionUri, "media", "search.css"),
@@ -426,10 +449,11 @@ export class SearchPanel {
 <html lang="en">
 <head>
 	<meta charset="UTF-8">
-	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; font-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; font-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<link href="${styleUri}" rel="stylesheet">
 	<link href="${codiconsUri}" rel="stylesheet">
+	${fontFaceCss ? `<style>${fontFaceCss}</style>` : ""}
 	<title>FullTab Search</title>
 </head>
 <body>

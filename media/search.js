@@ -593,9 +593,22 @@ function renderResults() {
 		const header = document.createElement("div")
 		header.className = "file-header"
 
-		const icon = document.createElement("span")
-		icon.className = "file-icon"
-		icon.textContent = "📄"
+		let icon
+		if (fileResult.iconUri) {
+			icon = document.createElement("img")
+			icon.className = "file-icon file-icon-img"
+			icon.src = fileResult.iconUri
+			icon.alt = ""
+		} else if (fileResult.iconFont) {
+			icon = document.createElement("span")
+			icon.className = "file-icon file-icon-font"
+			icon.style.fontFamily = `'${fileResult.iconFont.family}'`
+			icon.style.color = fileResult.iconFont.color
+			icon.textContent = fileResult.iconFont.char
+		} else {
+			icon = document.createElement("span")
+			icon.className = "file-icon codicon codicon-file"
+		}
 
 		const name = document.createElement("span")
 		name.className = "file-name"
