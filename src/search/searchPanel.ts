@@ -136,6 +136,9 @@ export class SearchPanel {
 					message.count,
 				)
 				break
+			case "editLine":
+				await this.editLine(message.file, message.line, message.newContent)
+				break
 		}
 	}
 
@@ -415,6 +418,21 @@ export class SearchPanel {
 		this.postMessage({ type: "replaced", count: 1 })
 	}
 
+	private async editLine(
+		file: string,
+		line: number,
+		newContent: string,
+	): Promise<void> {
+		const uri = vscode.Uri.file(file)
+		const document = await vscode.workspace.openTextDocument(uri)
+		const lineAt = document.lineAt(line - 1)
+		const edit = new vscode.WorkspaceEdit()
+		edit.replace(uri, lineAt.range, newContent)
+		await vscode.workspace.applyEdit(edit)
+		await document.save()
+		this.postMessage({ type: "lineEdited", file, line, newContent })
+	}
+
 	private persistState(state: SearchState): void {
 		void this.globalState.update(STATE_KEY, state)
 	}
@@ -473,6 +491,7 @@ export class SearchPanel {
 					<span id="matchCounter" class="match-counter">0/0</span>
 					<button id="nextMatch" class="icon-button" title="Next Match">›</button>
 				</div>
+				<button id="editToggle" class="toggle" title="Toggle edit mode"><span class="codicon codicon-edit"></span></button>
 			</div>
 
 			<div class="filter-row">

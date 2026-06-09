@@ -358,6 +358,10 @@ input {
 	min-width: 100%;
 }
 
+.edit-mode .snippet-line {
+	cursor: default;
+}
+
 .snippet-line:hover {
 	background: var(--vscode-list-hoverBackground);
 }
@@ -379,8 +383,28 @@ input {
 	user-select: none;
 }
 
+.edit-mode .line-number {
+	cursor: pointer;
+}
+
+.edit-mode .line-number:hover {
+	opacity: 0.75;
+}
+
 .line-content {
 	white-space: pre;
+	outline: none;
+	border-radius: 2px;
+}
+
+.edit-mode .line-content[contenteditable="true"] {
+	cursor: text;
+	caret-color: var(--vscode-editorCursor-foreground, currentColor);
+}
+
+.edit-mode .line-content[contenteditable="true"]:focus {
+	outline: 1px solid var(--vscode-focusBorder, #007fd4);
+	background: color-mix(in srgb, var(--vscode-focusBorder, #007fd4) 8%, transparent);
 }
 
 .match-highlight {

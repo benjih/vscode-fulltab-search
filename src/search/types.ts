@@ -89,6 +89,7 @@ export type WebviewMessage =
 			anchorLine: number
 			count: number
 	  }
+	| { type: "editLine"; file: string; line: number; newContent: string }
 	| { type: "ready" }
 
 export type ExtensionMessage =
@@ -115,3 +116,4 @@ export type ExtensionMessage =
 			queryId: string
 			tokens: Array<{ matchId: number; tokens: TokenSpan[] }>
 	  }
+	| { type: "lineEdited"; file: string; line: number; newContent: string }
