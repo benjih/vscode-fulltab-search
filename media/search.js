@@ -572,17 +572,30 @@ function renderMatchSection(matches) {
 	return block
 }
 
+function renderSplash() {
+	const el = document.createElement("div")
+	el.className = "splash"
+	el.innerHTML = `
+		<span class="splash-icon codicon codicon-search"></span>
+		<span class="splash-headline">Search your workspace</span>
+		<span class="splash-subtitle">Type a query to find matches across all files in the project</span>
+	`
+	return el
+}
+
 function renderResults() {
 	contextObserver.disconnect()
 	resultsEl.innerHTML = ""
 
 	if (!currentResults || currentResults.total === 0) {
-		const empty = document.createElement("div")
-		empty.className = "empty-state"
-		empty.textContent = patternInput.value.trim()
-			? "No results found"
-			: "Enter a search query to search across your workspace"
-		resultsEl.appendChild(empty)
+		if (patternInput.value.trim()) {
+			const empty = document.createElement("div")
+			empty.className = "empty-state"
+			empty.textContent = "No results found"
+			resultsEl.appendChild(empty)
+		} else {
+			resultsEl.appendChild(renderSplash())
+		}
 		return
 	}
 
