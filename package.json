@@ -3,7 +3,7 @@
 	"displayName": "FullTab Search",
 	"description": "Full-tab project search with tabs, filters, and inline results",
 	"version": "0.2.1",
-	"publisher": "local",
+	"publisher": "benjih",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/benjih/vscode-fulltab-search.git"
