@@ -79,7 +79,7 @@
 	},
 	"dependencies": {
 		"@vscode/codicons": "^0.0.45",
-		"@vscode/ripgrep": "^1.15.14",
+		"@vscode/ripgrep": "1.17.0",
 		"vscode-oniguruma": "^2.0.1",
 		"vscode-textmate": "^9.3.2"
 	},
