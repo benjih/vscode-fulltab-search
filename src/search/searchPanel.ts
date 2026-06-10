@@ -214,16 +214,7 @@ export class SearchPanel {
 		try {
 			const engineTimer = createTimer("runSearch.engine", queryDetails)
 			const results = await this.engine.search(
-				{
-					id: `search-${++this.queryCounter}`,
-					pattern: state.pattern,
-					include: state.include,
-					exclude: state.exclude,
-					caseSensitive: state.caseSensitive,
-					wholeWord: state.wholeWord,
-					useRegex: state.useRegex,
-					replace: state.replace,
-				},
+				{ id: `search-${++this.queryCounter}`, ...state },
 				this.searchTokenSource.token,
 			)
 			engineTimer.end({
@@ -373,16 +364,7 @@ export class SearchPanel {
 
 		try {
 			const count = await this.engine.replaceAll(
-				{
-					id: `replace-${Date.now()}`,
-					pattern: state.pattern,
-					include: state.include,
-					exclude: state.exclude,
-					caseSensitive: state.caseSensitive,
-					wholeWord: state.wholeWord,
-					useRegex: state.useRegex,
-					replace: state.replace,
-				},
+				{ id: `replace-${Date.now()}`, ...state },
 				this.searchTokenSource.token,
 			)
 			this.postMessage({ type: "replaced", count })

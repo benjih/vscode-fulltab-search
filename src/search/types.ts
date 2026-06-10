@@ -1,12 +1,5 @@
-export interface SearchQuery {
+export interface SearchQuery extends SearchState {
 	id: string
-	pattern: string
-	include: string
-	exclude: string
-	caseSensitive: boolean
-	wholeWord: boolean
-	useRegex: boolean
-	replace: string
 }
 
 export interface TokenSpan {
