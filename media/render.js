@@ -314,20 +314,9 @@ function renderMatchSection(matches) {
 	}
 
 	// Register with IntersectionObserver so context tokens are loaded lazily
-	const allContextLines = []
-	for (const match of matches) {
-		const { match: effective } = getEffectiveMatch(match)
-		for (const ctx of effective.contextBefore) {
-			if (!allContextLines.some((l) => l.line === ctx.line)) {
-				allContextLines.push({ line: ctx.line, text: ctx.text })
-			}
-		}
-		for (const ctx of effective.contextAfter) {
-			if (!allContextLines.some((l) => l.line === ctx.line)) {
-				allContextLines.push({ line: ctx.line, text: ctx.text })
-			}
-		}
-	}
+	const allContextLines = lines
+		.filter((entry) => entry.matches.length === 0)
+		.map((entry) => ({ line: entry.lineNumber, text: entry.text }))
 	if (allContextLines.length > 0) {
 		observeBlockContext(block, {
 			file,
