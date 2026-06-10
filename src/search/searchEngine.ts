@@ -71,10 +71,11 @@ export class SearchEngine {
 		ripgrepTimer.end({ matches: rawMatches.length })
 
 		const breadcrumbTimer = createTimer("search.breadcrumbs", queryDetails)
+		const fileLinesCache = new Map<string, string[] | null>()
 		const matches = rawMatches.map((match, index) => ({
 			...match,
 			id: index,
-			breadcrumb: this.getBreadcrumb(match.file, match.line),
+			breadcrumb: this.getBreadcrumb(match.file, match.line, fileLinesCache),
 		}))
 		breadcrumbTimer.end({ matches: matches.length })
 
@@ -248,13 +249,20 @@ export class SearchEngine {
 		})
 	}
 
-	private getBreadcrumb(filePath: string, matchLine: number): string {
-		try {
-			const content = fs.readFileSync(filePath, "utf8")
-			const lines = content.split(/\r?\n/)
-			return buildBreadcrumb(lines, matchLine)
-		} catch {
-			return ""
+	private getBreadcrumb(
+		filePath: string,
+		matchLine: number,
+		fileLinesCache: Map<string, string[] | null>,
+	): string {
+		let lines = fileLinesCache.get(filePath)
+		if (lines === undefined) {
+			try {
+				lines = fs.readFileSync(filePath, "utf8").split(/\r?\n/)
+			} catch {
+				lines = null
+			}
+			fileLinesCache.set(filePath, lines)
 		}
+		return lines ? buildBreadcrumb(lines, matchLine) : ""
 	}
 }
