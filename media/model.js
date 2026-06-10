@@ -139,6 +139,28 @@ function shiftContextTokenCache(file, fromLine, delta) {
 }
 
 /**
+ * Yields every match in `file`'s results together with all context-line
+ * arrays attached to it: the base contextBefore/contextAfter plus the
+ * expanded copies, if any.
+ * @param {string} file
+ * @returns {Generator<{ match: SearchMatch, expanded: ExpandedSection | undefined, contextArrays: ContextLine[][] }>}
+ */
+function* matchEntriesForFile(file) {
+	if (!state.currentResults) return
+	for (const fileResult of state.currentResults.fileResults) {
+		if (fileResult.file !== file) continue
+		for (const match of fileResult.matches) {
+			const expanded = expandedSections.get(match.id)
+			const contextArrays = [match.contextBefore, match.contextAfter]
+			if (expanded) {
+				contextArrays.push(expanded.contextBefore, expanded.contextAfter)
+			}
+			yield { match, expanded, contextArrays }
+		}
+	}
+}
+
+/**
  * Text of `file`:`lineNumber` if that line is part of the rendered results
  * (as a match line or context line), else null.
  * @param {string} file
@@ -148,19 +170,10 @@ function shiftContextTokenCache(file, fromLine, delta) {
 export function getVisibleLineText(file, lineNumber) {
 	const lineMatches = state.matchesByFileLine.get(`${file}:${lineNumber}`)
 	if (lineMatches && lineMatches.length > 0) return lineMatches[0].lineText
-	if (!state.currentResults) return null
-	for (const fileResult of state.currentResults.fileResults) {
-		if (fileResult.file !== file) continue
-		for (const match of fileResult.matches) {
-			const expanded = expandedSections.get(match.id)
-			const contextArrays = [match.contextBefore, match.contextAfter]
-			if (expanded) {
-				contextArrays.push(expanded.contextBefore, expanded.contextAfter)
-			}
-			for (const arr of contextArrays) {
-				const ctx = arr.find((c) => c.line === lineNumber)
-				if (ctx) return ctx.text
-			}
+	for (const { contextArrays } of matchEntriesForFile(file)) {
+		for (const arr of contextArrays) {
+			const ctx = arr.find((c) => c.line === lineNumber)
+			if (ctx) return ctx.text
 		}
 	}
 	return null
@@ -197,31 +210,23 @@ export function joinLineIntoPrevious(file, lineNumber, merged, prevLength) {
 		}
 	}
 
-	for (const fileResult of state.currentResults.fileResults) {
-		if (fileResult.file !== file) continue
-		for (const match of fileResult.matches) {
-			const expanded = expandedSections.get(match.id)
-			const contextArrays = [match.contextBefore, match.contextAfter]
-			if (expanded) {
-				contextArrays.push(expanded.contextBefore, expanded.contextAfter)
-			}
-			if (match.line === lineNumber) {
-				// The match's line was absorbed into the one above it.
-				match.line = lineNumber - 1
-				match.lineText = merged
-				match.matchStart += prevLength
-				match.matchEnd += prevLength
-				match.column += prevLength
-				match.tokens = undefined
-			} else if (match.line === lineNumber - 1) {
-				match.lineText = merged
-				match.tokens = undefined
-			} else if (match.line > lineNumber) {
-				match.line -= 1
-			}
-			for (const arr of contextArrays) {
-				transformContextArray(arr)
-			}
+	for (const { match, contextArrays } of matchEntriesForFile(file)) {
+		if (match.line === lineNumber) {
+			// The match's line was absorbed into the one above it.
+			match.line = lineNumber - 1
+			match.lineText = merged
+			match.matchStart += prevLength
+			match.matchEnd += prevLength
+			match.column += prevLength
+			match.tokens = undefined
+		} else if (match.line === lineNumber - 1) {
+			match.lineText = merged
+			match.tokens = undefined
+		} else if (match.line > lineNumber) {
+			match.line -= 1
+		}
+		for (const arr of contextArrays) {
+			transformContextArray(arr)
 		}
 	}
 	rebuildMatchIndexes()
@@ -238,32 +243,24 @@ export function joinLineIntoPrevious(file, lineNumber, merged, prevLength) {
 export function insertLineAfter(file, lineNumber, text) {
 	if (!state.currentResults) return
 	shiftContextTokenCache(file, lineNumber, 1)
-	for (const fileResult of state.currentResults.fileResults) {
-		if (fileResult.file !== file) continue
-		for (const match of fileResult.matches) {
-			const expanded = expandedSections.get(match.id)
-			const contextArrays = [match.contextBefore, match.contextAfter]
+	for (const { match, expanded, contextArrays } of matchEntriesForFile(file)) {
+		if (match.line > lineNumber) match.line += 1
+		for (const arr of contextArrays) {
+			for (const ctx of arr) {
+				if (ctx.line > lineNumber) ctx.line += 1
+			}
+		}
+		// The new line becomes a context line directly below the split line,
+		// in every copy of the context that contains it.
+		if (match.line === lineNumber) {
+			match.contextAfter.unshift({ line: lineNumber + 1, text })
 			if (expanded) {
-				contextArrays.push(expanded.contextBefore, expanded.contextAfter)
+				expanded.contextAfter.unshift({ line: lineNumber + 1, text })
 			}
-			if (match.line > lineNumber) match.line += 1
-			for (const arr of contextArrays) {
-				for (const ctx of arr) {
-					if (ctx.line > lineNumber) ctx.line += 1
-				}
-			}
-			// The new line becomes a context line directly below the split line,
-			// in every copy of the context that contains it.
-			if (match.line === lineNumber) {
-				match.contextAfter.unshift({ line: lineNumber + 1, text })
-				if (expanded) {
-					expanded.contextAfter.unshift({ line: lineNumber + 1, text })
-				}
-			}
-			for (const arr of contextArrays) {
-				const idx = arr.findIndex((ctx) => ctx.line === lineNumber)
-				if (idx !== -1) arr.splice(idx + 1, 0, { line: lineNumber + 1, text })
-			}
+		}
+		for (const arr of contextArrays) {
+			const idx = arr.findIndex((ctx) => ctx.line === lineNumber)
+			if (idx !== -1) arr.splice(idx + 1, 0, { line: lineNumber + 1, text })
 		}
 	}
 	rebuildMatchIndexes()
@@ -276,33 +273,17 @@ export function insertLineAfter(file, lineNumber, text) {
  */
 export function updateLineInDataModel(file, lineNumber, newText) {
 	if (!state.currentResults) return
-	for (const fileResult of state.currentResults.fileResults) {
-		if (fileResult.file !== file) continue
-		for (const match of fileResult.matches) {
-			if (match.line === lineNumber) {
-				match.lineText = newText
-				match.tokens = undefined
-			}
-			for (const ctx of match.contextBefore) {
-				if (ctx.line === lineNumber) {
-					ctx.text = newText
-					ctx.tokens = undefined
-				}
-			}
-			for (const ctx of match.contextAfter) {
-				if (ctx.line === lineNumber) {
-					ctx.text = newText
-					ctx.tokens = undefined
-				}
-			}
+	for (const { match, contextArrays } of matchEntriesForFile(file)) {
+		if (match.line === lineNumber) {
+			match.lineText = newText
+			match.tokens = undefined
 		}
-	}
-	for (const [matchId, expanded] of expandedSections) {
-		if (state.matchById.get(matchId)?.file !== file) continue
-		for (const ctx of [...expanded.contextBefore, ...expanded.contextAfter]) {
-			if (ctx.line === lineNumber) {
-				ctx.text = newText
-				ctx.tokens = undefined
+		for (const arr of contextArrays) {
+			for (const ctx of arr) {
+				if (ctx.line === lineNumber) {
+					ctx.text = newText
+					ctx.tokens = undefined
+				}
 			}
 		}
 	}
@@ -320,25 +301,15 @@ export function updateLineInDataModel(file, lineNumber, newText) {
  */
 export function storeLineTokens(file, lineNumber, text, tokens) {
 	contextTokenCache.set(`${file}:${lineNumber}`, tokens)
-	if (!state.currentResults) return
-	for (const fileResult of state.currentResults.fileResults) {
-		if (fileResult.file !== file) continue
-		for (const match of fileResult.matches) {
-			if (match.line === lineNumber && match.lineText === text) {
-				match.tokens = tokens
-			}
-			for (const ctx of [...match.contextBefore, ...match.contextAfter]) {
+	for (const { match, contextArrays } of matchEntriesForFile(file)) {
+		if (match.line === lineNumber && match.lineText === text) {
+			match.tokens = tokens
+		}
+		for (const arr of contextArrays) {
+			for (const ctx of arr) {
 				if (ctx.line === lineNumber && ctx.text === text) {
 					ctx.tokens = tokens
 				}
-			}
-		}
-	}
-	for (const [matchId, expanded] of expandedSections) {
-		if (state.matchById.get(matchId)?.file !== file) continue
-		for (const ctx of [...expanded.contextBefore, ...expanded.contextAfter]) {
-			if (ctx.line === lineNumber && ctx.text === text) {
-				ctx.tokens = tokens
 			}
 		}
 	}
