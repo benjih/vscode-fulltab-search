@@ -44,10 +44,14 @@ jobs:
 
       - name: Build and package (devbox)
         if: matrix.use_devbox
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: devbox run -- make build && devbox run -- npm run package -- --target ${{ matrix.target }}
 
       - name: Build and package
         if: ${{ !matrix.use_devbox }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm ci && npm run compile && npm run package -- --target ${{ matrix.target }}
 
       - uses: actions/upload-artifact@v4
