@@ -13,11 +13,20 @@ jobs:
           - os: ubuntu-latest
             target: linux-x64
             use_devbox: true
+          - os: ubuntu-latest
+            target: linux-arm64
+            use_devbox: true
           - os: macos-latest
             target: darwin-arm64
             use_devbox: true
+          - os: macos-latest
+            target: darwin-x64
+            use_devbox: true
           - os: windows-latest
             target: win32-x64
+            use_devbox: false
+          - os: windows-latest
+            target: win32-arm64
             use_devbox: false
     runs-on: ${{ matrix.os }}
     permissions:
