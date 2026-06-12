@@ -1,5 +1,5 @@
 import * as vscode from "vscode"
-import { createTimer, searchQueryDetails } from "../debug/metrics"
+import { searchQueryDetails, timed } from "../debug/metrics"
 import { SyntaxTokenizer } from "../syntax/tokenizer"
 import { enrichResults } from "./enrichResults"
 import { FileIconResolver } from "./fileIconResolver"
@@ -174,34 +174,39 @@ export class SearchPanel {
 		anchorLine: number,
 		count: number,
 	): Promise<void> {
-		const totalTimer = createTimer("expandMatch", { direction })
 		try {
-			const { lines, hasMore } = this.engine.expandContext(
-				file,
-				direction,
-				anchorLine,
-				count,
+			await timed(
+				"expandMatch",
+				{ direction },
+				async () => {
+					const { lines, hasMore } = this.engine.expandContext(
+						file,
+						direction,
+						anchorLine,
+						count,
+					)
+					const tokenSpans = await timed(
+						"expandMatch.tokenize",
+						undefined,
+						() => this.tokenizer.tokenizeLines(lines.map((l) => l.text), file),
+						(spans) => ({ lines: spans.length }),
+					)
+					const tokenizedLines: ContextLine[] = lines.map((l, i) => ({
+						...l,
+						tokens: tokenSpans[i],
+					}))
+					this.postMessage({
+						type: "expanded",
+						matchId,
+						direction,
+						lines: tokenizedLines,
+						hasMore,
+					})
+					return lines.length
+				},
+				(lineCount) => ({ lines: lineCount }),
 			)
-			const tokenTimer = createTimer("expandMatch.tokenize")
-			const tokenSpans = await this.tokenizer.tokenizeLines(
-				lines.map((l) => l.text),
-				file,
-			)
-			tokenTimer.end({ lines: lines.length })
-			const tokenizedLines: ContextLine[] = lines.map((l, i) => ({
-				...l,
-				tokens: tokenSpans[i],
-			}))
-			this.postMessage({
-				type: "expanded",
-				matchId,
-				direction,
-				lines: tokenizedLines,
-				hasMore,
-			})
-			totalTimer.end({ lines: lines.length })
 		} catch (error) {
-			totalTimer.end({ error: true })
 			const message =
 				error instanceof Error ? error.message : "Failed to load context"
 			this.postMessage({ type: "error", message })
@@ -214,33 +219,35 @@ export class SearchPanel {
 		this.searchTokenSource = new vscode.CancellationTokenSource()
 		this.postMessage({ type: "searching" })
 		const queryDetails = searchQueryDetails(state)
-		const totalTimer = createTimer("runSearch", queryDetails)
 
 		try {
-			const engineTimer = createTimer("runSearch.engine", queryDetails)
-			const results = await this.engine.search(
-				{ id: `search-${++this.queryCounter}`, ...state },
-				this.searchTokenSource.token,
+			const results = await timed(
+				"runSearch",
+				queryDetails,
+				async () => {
+					const results = await timed(
+						"runSearch.engine",
+						queryDetails,
+						() =>
+							this.engine.search(
+								{ id: `search-${++this.queryCounter}`, ...state },
+								this.searchTokenSource!.token,
+							),
+						(r) => ({ matches: r.total, files: r.fileResults.length }),
+					)
+					await timed(
+						"runSearch.enrichPaths",
+						queryDetails,
+						() => enrichResults(results, this.iconResolver, this.panel.webview),
+						() => ({ files: results.fileResults.length }),
+					)
+					return results
+				},
+				(r) => ({ matches: r.total, files: r.fileResults.length, truncated: r.truncated }),
 			)
-			engineTimer.end({
-				matches: results.total,
-				files: results.fileResults.length,
-			})
-
-			const enrichTimer = createTimer("runSearch.enrichPaths", queryDetails)
-			enrichResults(results, this.iconResolver, this.panel.webview)
-			enrichTimer.end({ files: results.fileResults.length })
-
 			this.postMessage({ type: "results", results })
-			totalTimer.end({
-				matches: results.total,
-				files: results.fileResults.length,
-				truncated: results.truncated,
-			})
-
 			void this.tokenizeResultsAsync(results)
 		} catch (error) {
-			totalTimer.end({ error: true })
 			const message = error instanceof Error ? error.message : "Search failed"
 			this.postMessage({ type: "error", message })
 		}
@@ -326,18 +333,23 @@ export class SearchPanel {
 		this.cancelSearch()
 		this.searchTokenSource = new vscode.CancellationTokenSource()
 		const queryDetails = searchQueryDetails(state)
-		const totalTimer = createTimer("runReplaceAll", queryDetails)
 
 		try {
-			const count = await this.engine.replaceAll(
-				{ id: `replace-${++this.queryCounter}`, ...state },
-				this.searchTokenSource.token,
+			await timed(
+				"runReplaceAll",
+				queryDetails,
+				async () => {
+					const count = await this.engine.replaceAll(
+						{ id: `replace-${++this.queryCounter}`, ...state },
+						this.searchTokenSource!.token,
+					)
+					this.postMessage({ type: "replaced", count })
+					await this.runSearch(state)
+					return count
+				},
+				(count) => ({ replacements: count }),
 			)
-			this.postMessage({ type: "replaced", count })
-			await this.runSearch(state)
-			totalTimer.end({ replacements: count })
 		} catch (error) {
-			totalTimer.end({ error: true })
 			const message = error instanceof Error ? error.message : "Replace failed"
 			this.postMessage({ type: "error", message })
 		}

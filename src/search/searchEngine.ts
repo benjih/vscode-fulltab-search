@@ -2,7 +2,7 @@ import { spawn } from "node:child_process"
 import * as fs from "node:fs"
 import { rgPath } from "@vscode/ripgrep"
 import * as vscode from "vscode"
-import { createTimer, searchQueryDetails } from "../debug/metrics"
+import { createTimer, searchQueryDetails, timed } from "../debug/metrics"
 import {
 	buildRipgrepArgs,
 	createRipgrepParseState,
@@ -50,52 +50,57 @@ export class SearchEngine {
 	): Promise<SearchResults> {
 		this.cancel()
 		const queryDetails = searchQueryDetails(query)
-		const totalTimer = createTimer("search", queryDetails)
 
 		const workspaceFolder = vscode.workspace.workspaceFolders?.[0]
 		if (!workspaceFolder) {
-			totalTimer.end({ matches: 0, reason: "no-workspace" })
+			createTimer("search", queryDetails).end({ matches: 0, reason: "no-workspace" })
 			return { queryId: query.id, fileResults: [], total: 0, truncated: false }
 		}
 
 		if (!query.pattern.trim()) {
-			totalTimer.end({ matches: 0, reason: "empty-pattern" })
+			createTimer("search", queryDetails).end({ matches: 0, reason: "empty-pattern" })
 			return { queryId: query.id, fileResults: [], total: 0, truncated: false }
 		}
 
 		const rootPath = workspaceFolder.uri.fsPath
 		const args = buildRipgrepArgs(query, rootPath)
 
-		const ripgrepTimer = createTimer("search.ripgrep", queryDetails)
-		const rawMatches = await this.runRipgrep(args, token)
-		ripgrepTimer.end({ matches: rawMatches.length })
+		return timed(
+			"search",
+			queryDetails,
+			async () => {
+				const rawMatches = await timed(
+					"search.ripgrep",
+					queryDetails,
+					() => this.runRipgrep(args, token),
+					(m) => ({ matches: m.length }),
+				)
 
-		const breadcrumbTimer = createTimer("search.breadcrumbs", queryDetails)
-		const fileLinesCache = new Map<string, string[] | null>()
-		const matches = rawMatches.map((match, index) => ({
-			...match,
-			id: index,
-			breadcrumb: this.getBreadcrumb(match.file, match.line, fileLinesCache),
-		}))
-		breadcrumbTimer.end({ matches: matches.length })
+				const fileLinesCache = new Map<string, string[] | null>()
+				const matches = await timed(
+					"search.breadcrumbs",
+					queryDetails,
+					() =>
+						rawMatches.map((match, index) => ({
+							...match,
+							id: index,
+							breadcrumb: this.getBreadcrumb(match.file, match.line, fileLinesCache),
+						})),
+					(m) => ({ matches: m.length }),
+				)
 
-		const groupTimer = createTimer("search.groupByFile", queryDetails)
-		const fileResults = groupByFile(matches, rootPath)
-		groupTimer.end({ files: fileResults.length })
+				const fileResults = await timed(
+					"search.groupByFile",
+					queryDetails,
+					() => groupByFile(matches, rootPath),
+					(files) => ({ files: files.length }),
+				)
 
-		const truncated = matches.length >= MAX_RESULTS
-		totalTimer.end({
-			matches: matches.length,
-			files: fileResults.length,
-			truncated,
-		})
-
-		return {
-			queryId: query.id,
-			fileResults,
-			total: matches.length,
-			truncated,
-		}
+				const truncated = matches.length >= MAX_RESULTS
+				return { queryId: query.id, fileResults, total: matches.length, truncated }
+			},
+			(r) => ({ matches: r.total, files: r.fileResults.length, truncated: r.truncated }),
+		)
 	}
 
 	async replaceAll(
@@ -103,41 +108,49 @@ export class SearchEngine {
 		token: vscode.CancellationToken,
 	): Promise<number> {
 		const queryDetails = searchQueryDetails(query)
-		const totalTimer = createTimer("replaceAll", queryDetails)
-		const results = await this.search(query, token)
-		const edit = new vscode.WorkspaceEdit()
-		const editedUris: vscode.Uri[] = []
-		let count = 0
+		return timed(
+			"replaceAll",
+			queryDetails,
+			async () => {
+				const results = await this.search(query, token)
+				const edit = new vscode.WorkspaceEdit()
+				const editedUris: vscode.Uri[] = []
+				let count = 0
 
-		for (const fileResult of results.fileResults) {
-			const uri = vscode.Uri.file(fileResult.file)
-			editedUris.push(uri)
-			for (const match of fileResult.matches) {
-				const range = new vscode.Range(
-					match.line - 1,
-					match.matchStart,
-					match.line - 1,
-					match.matchEnd,
-				)
-				edit.replace(uri, range, query.replace)
-				count++
-			}
-		}
+				for (const fileResult of results.fileResults) {
+					const uri = vscode.Uri.file(fileResult.file)
+					editedUris.push(uri)
+					for (const match of fileResult.matches) {
+						const range = new vscode.Range(
+							match.line - 1,
+							match.matchStart,
+							match.line - 1,
+							match.matchEnd,
+						)
+						edit.replace(uri, range, query.replace)
+						count++
+					}
+				}
 
-		const applyTimer = createTimer("replaceAll.applyEdit")
-		if (count > 0) {
-			const applied = await vscode.workspace.applyEdit(edit)
-			if (!applied) {
-				applyTimer.end({ replacements: count, error: true })
-				totalTimer.end({ replacements: count, error: true })
-				throw new Error("Failed to apply replacement edits")
-			}
-			await saveEditedDocuments(editedUris)
-		}
-		applyTimer.end({ replacements: count })
+				if (count > 0) {
+					await timed(
+						"replaceAll.applyEdit",
+						undefined,
+						async () => {
+							const applied = await vscode.workspace.applyEdit(edit)
+							if (!applied) {
+								throw new Error("Failed to apply replacement edits")
+							}
+							await saveEditedDocuments(editedUris)
+						},
+						() => ({ replacements: count }),
+					)
+				}
 
-		totalTimer.end({ replacements: count })
-		return count
+				return count
+			},
+			(c) => ({ replacements: c }),
+		)
 	}
 
 	expandContext(

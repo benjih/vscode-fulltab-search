@@ -168,3 +168,20 @@ export function createTimer(
 		},
 	}
 }
+
+export async function timed<T>(
+	name: string,
+	details: MetricDetails | undefined,
+	fn: () => Promise<T> | T,
+	endDetails?: (result: T) => MetricDetails,
+): Promise<T> {
+	const timer = createTimer(name, details)
+	try {
+		const result = await fn()
+		timer.end(endDetails?.(result))
+		return result
+	} catch (err) {
+		timer.end({ error: true })
+		throw err
+	}
+}
