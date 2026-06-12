@@ -12,6 +12,7 @@ export function activate(context: vscode.ExtensionContext) {
 		"fullTabSearch.open",
 		() => void SearchPanel.show(context),
 	)
+	// Returns recorded metrics only if fullTabSearch.debug is enabled; otherwise returns empty array
 	const getDebugMetrics = vscode.commands.registerCommand(
 		"fullTabSearch.getDebugMetrics",
 		() => getRecordedMetrics(),

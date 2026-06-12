@@ -330,7 +330,7 @@ export class SearchPanel {
 
 		try {
 			const count = await this.engine.replaceAll(
-				{ id: `replace-${Date.now()}`, ...state },
+				{ id: `replace-${++this.queryCounter}`, ...state },
 				this.searchTokenSource.token,
 			)
 			this.postMessage({ type: "replaced", count })
