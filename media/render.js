@@ -25,6 +25,7 @@ import { patternInput, resultsEl, updateMatchCounter } from "./ui.js"
 
 /** @typedef {import("./types.js").TokenSpan} TokenSpan */
 /** @typedef {import("./types.js").SearchMatch} SearchMatch */
+/** @typedef {import("./types.js").ContextLine} ContextLine */
 
 export function focusMatch(index) {
 	blurActiveEditableLine()
@@ -108,28 +109,39 @@ function groupMatchesIntoSections(matches) {
 	return sections
 }
 
+/** @typedef {{ lineNumber: number; text: string; tokens: TokenSpan[] | undefined; matches: SearchMatch[] }} SectionLine */
+
+/**
+ * @param {Map<number, SectionLine>} byLine
+ * @param {string} file
+ * @param {ContextLine} contextLine
+ */
+function addContextLine(byLine, file, contextLine) {
+	if (!byLine.has(contextLine.line)) {
+		byLine.set(contextLine.line, {
+			lineNumber: contextLine.line,
+			text: contextLine.text,
+			tokens:
+				contextLine.tokens ??
+				contextTokenCache.get(`${file}:${contextLine.line}`),
+			matches: [],
+		})
+	}
+}
+
 /**
  * @param {SearchMatch[]} matches
  * @param {string} file
  */
 function collectSectionLines(matches, file) {
-	/** @type {Map<number, { lineNumber: number; text: string; tokens: TokenSpan[] | undefined; matches: SearchMatch[] }>} */
+	/** @type {Map<number, SectionLine>} */
 	const byLine = new Map()
 
 	for (const match of matches) {
 		const { match: effective } = getEffectiveMatch(match)
 
 		for (const contextLine of effective.contextBefore) {
-			if (!byLine.has(contextLine.line)) {
-				byLine.set(contextLine.line, {
-					lineNumber: contextLine.line,
-					text: contextLine.text,
-					tokens:
-						contextLine.tokens ??
-						contextTokenCache.get(`${file}:${contextLine.line}`),
-					matches: [],
-				})
-			}
+			addContextLine(byLine, file, contextLine)
 		}
 
 		// A line can carry several matches (multiple occurrences of the
@@ -148,16 +160,7 @@ function collectSectionLines(matches, file) {
 		}
 
 		for (const contextLine of effective.contextAfter) {
-			if (!byLine.has(contextLine.line)) {
-				byLine.set(contextLine.line, {
-					lineNumber: contextLine.line,
-					text: contextLine.text,
-					tokens:
-						contextLine.tokens ??
-						contextTokenCache.get(`${file}:${contextLine.line}`),
-					matches: [],
-				})
-			}
+			addContextLine(byLine, file, contextLine)
 		}
 	}
 
