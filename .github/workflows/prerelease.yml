@@ -38,7 +38,7 @@ jobs:
         with:
           enable-cache: true
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         if: ${{ !matrix.use_devbox }}
         with:
           node-version: "22"
