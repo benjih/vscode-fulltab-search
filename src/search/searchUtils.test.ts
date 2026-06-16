@@ -1,7 +1,8 @@
 import * as path from "node:path"
 import { describe, expect, it } from "vitest"
 import {
-	buildBreadcrumb,
+	breadcrumbFromIndex,
+	buildSymbolIndex,
 	extractSymbol,
 	groupByFile,
 	normalizeGlob,
@@ -93,10 +94,52 @@ describe("extractSymbol", () => {
 	})
 })
 
-describe("buildBreadcrumb", () => {
+describe("buildSymbolIndex", () => {
+	it("collects symbol declarations with their line index", () => {
+		const lines = [
+			"export function outer() {",
+			"  const x = 1;",
+			"export class Inner {",
+		]
+		expect(buildSymbolIndex(lines)).toEqual([
+			{ line: 0, symbol: "outer" },
+			{ line: 2, symbol: "Inner" },
+		])
+	})
+
+	it("skips lines without a symbol", () => {
+		expect(buildSymbolIndex(["const x = 1;", "  return y;"])).toEqual([])
+	})
+})
+
+describe("breadcrumbFromIndex", () => {
 	it("joins symbols above the match line", () => {
-		const lines = ["export function outer() {", "  return fulltab_marker;"]
-		expect(buildBreadcrumb(lines, 2)).toBe("outer")
+		const index = buildSymbolIndex([
+			"export function outer() {",
+			"  return fulltab_marker;",
+		])
+		expect(breadcrumbFromIndex(index, 2)).toBe("outer")
+	})
+
+	it("returns only the nearest 4 symbols, top-to-bottom", () => {
+		const index = [
+			{ line: 0, symbol: "a" },
+			{ line: 1, symbol: "b" },
+			{ line: 2, symbol: "c" },
+			{ line: 3, symbol: "d" },
+			{ line: 4, symbol: "e" },
+		]
+		// match on line 6 (1-based) → all 5 are above; keep nearest 4
+		expect(breadcrumbFromIndex(index, 6)).toBe("b › c › d › e")
+	})
+
+	it("excludes symbols at or below the match line", () => {
+		const index = [
+			{ line: 0, symbol: "a" },
+			{ line: 5, symbol: "b" },
+		]
+		// match on line 3 (1-based, 0-based index 2): only `a` is strictly above
+		expect(breadcrumbFromIndex(index, 3)).toBe("a")
 	})
 })
 
