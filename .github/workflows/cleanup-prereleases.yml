@@ -1,0 +1,45 @@
+name: Cleanup pre-releases
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "List what would be deleted without deleting"
+        type: boolean
+        default: true
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Delete stale pre-releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          CURRENT=$(jq -r '.version' package.json)
+          echo "Current version: $CURRENT"
+
+          # Pre-release tags look like v<semver>-<sha>; extract the <semver> part.
+          gh release list --limit 1000 --json tagName,isPrerelease \
+            --jq '.[] | select(.isPrerelease) | .tagName' | while read -r tag; do
+            version="${tag#v}"        # strip leading v
+            version="${version%%-*}"  # strip -<sha> suffix
+
+            # Keep anything that is not strictly older than the current version.
+            older=$(printf '%s\n%s\n' "$version" "$CURRENT" | sort -V | head -n1)
+            if [ "$version" != "$CURRENT" ] && [ "$older" = "$version" ]; then
+              if [ "$DRY_RUN" = "true" ]; then
+                echo "[dry-run] would delete $tag (version $version < $CURRENT)"
+              else
+                echo "Deleting $tag (version $version < $CURRENT)"
+                gh release delete "$tag" --yes --cleanup-tag
+              fi
+            else
+              echo "Keeping $tag (version $version)"
+            fi
+          done
