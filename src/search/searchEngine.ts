@@ -13,8 +13,8 @@ import {
 	breadcrumbFromIndex,
 	buildSymbolIndex,
 	groupByFile,
-	splitLines,
 	type SymbolEntry,
+	splitLines,
 } from "./searchUtils"
 import type {
 	ContextLine,
@@ -59,12 +59,18 @@ export class SearchEngine {
 
 		const workspaceFolder = vscode.workspace.workspaceFolders?.[0]
 		if (!workspaceFolder) {
-			createTimer("search", queryDetails).end({ matches: 0, reason: "no-workspace" })
+			createTimer("search", queryDetails).end({
+				matches: 0,
+				reason: "no-workspace",
+			})
 			return { queryId: query.id, fileResults: [], total: 0, truncated: false }
 		}
 
 		if (!query.pattern.trim()) {
-			createTimer("search", queryDetails).end({ matches: 0, reason: "empty-pattern" })
+			createTimer("search", queryDetails).end({
+				matches: 0,
+				reason: "empty-pattern",
+			})
 			return { queryId: query.id, fileResults: [], total: 0, truncated: false }
 		}
 
@@ -82,20 +88,25 @@ export class SearchEngine {
 					(m) => ({ matches: m.length }),
 				)
 
-				const symbolIndexCache = new Map<string, SymbolEntry[] | null>()
+				const symbolIndexCache = new Map<
+					string,
+					Promise<SymbolEntry[] | null>
+				>()
 				const matches = await timed(
 					"search.breadcrumbs",
 					queryDetails,
 					() =>
-						rawMatches.map((match, index) => ({
-							...match,
-							id: index,
-							breadcrumb: this.getBreadcrumb(
-								match.file,
-								match.line,
-								symbolIndexCache,
-							),
-						})),
+						Promise.all(
+							rawMatches.map(async (match, index) => ({
+								...match,
+								id: index,
+								breadcrumb: await this.getBreadcrumb(
+									match.file,
+									match.line,
+									symbolIndexCache,
+								),
+							})),
+						),
 					(m) => ({ matches: m.length }),
 				)
 
@@ -107,9 +118,18 @@ export class SearchEngine {
 				)
 
 				const truncated = matches.length >= MAX_RESULTS
-				return { queryId: query.id, fileResults, total: matches.length, truncated }
+				return {
+					queryId: query.id,
+					fileResults,
+					total: matches.length,
+					truncated,
+				}
 			},
-			(r) => ({ matches: r.total, files: r.fileResults.length, truncated: r.truncated }),
+			(r) => ({
+				matches: r.total,
+				files: r.fileResults.length,
+				truncated: r.truncated,
+			}),
 		)
 	}
 
@@ -163,14 +183,14 @@ export class SearchEngine {
 		)
 	}
 
-	expandContext(
+	async expandContext(
 		filePath: string,
 		direction: "before" | "after",
 		anchorLine: number,
 		count: number = EXPAND_CHUNK,
-	): { lines: ContextLine[]; hasMore: boolean } {
+	): Promise<{ lines: ContextLine[]; hasMore: boolean }> {
 		const timer = createTimer("expandContext", { direction })
-		const content = fs.readFileSync(filePath, "utf8")
+		const content = await fs.promises.readFile(filePath, "utf8")
 		const allLines = content.split(/\r?\n/)
 		const totalLines = allLines.length
 
@@ -272,21 +292,20 @@ export class SearchEngine {
 		})
 	}
 
-	private getBreadcrumb(
+	private async getBreadcrumb(
 		filePath: string,
 		matchLine: number,
-		symbolIndexCache: Map<string, SymbolEntry[] | null>,
-	): string {
-		let index = symbolIndexCache.get(filePath)
-		if (index === undefined) {
-			try {
-				const lines = fs.readFileSync(filePath, "utf8").split(/\r?\n/)
-				index = buildSymbolIndex(lines)
-			} catch {
-				index = null
-			}
-			symbolIndexCache.set(filePath, index)
+		symbolIndexCache: Map<string, Promise<SymbolEntry[] | null>>,
+	): Promise<string> {
+		let pending = symbolIndexCache.get(filePath)
+		if (pending === undefined) {
+			pending = fs.promises
+				.readFile(filePath, "utf8")
+				.then((content) => buildSymbolIndex(content.split(/\r?\n/)))
+				.catch(() => null)
+			symbolIndexCache.set(filePath, pending)
 		}
+		const index = await pending
 		return index ? breadcrumbFromIndex(index, matchLine) : ""
 	}
 }

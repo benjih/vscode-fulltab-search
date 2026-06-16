@@ -217,7 +217,8 @@ export class SyntaxTokenizer {
 			let fileLines: string[] | null = fileLinesOverride ?? null
 			if (!fileLines) {
 				try {
-					fileLines = fs.readFileSync(filePath, "utf8").split("\n")
+					const content = await fs.promises.readFile(filePath, "utf8")
+					fileLines = content.split("\n")
 				} catch {
 					fileLines = null
 				}
