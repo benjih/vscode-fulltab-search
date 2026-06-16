@@ -9,7 +9,13 @@ import {
 	MAX_RESULTS,
 	parseRipgrepLine,
 } from "./ripgrepParser"
-import { buildBreadcrumb, groupByFile, splitLines } from "./searchUtils"
+import {
+	breadcrumbFromIndex,
+	buildSymbolIndex,
+	groupByFile,
+	splitLines,
+	type SymbolEntry,
+} from "./searchUtils"
 import type {
 	ContextLine,
 	SearchMatch,
@@ -76,7 +82,7 @@ export class SearchEngine {
 					(m) => ({ matches: m.length }),
 				)
 
-				const fileLinesCache = new Map<string, string[] | null>()
+				const symbolIndexCache = new Map<string, SymbolEntry[] | null>()
 				const matches = await timed(
 					"search.breadcrumbs",
 					queryDetails,
@@ -84,7 +90,11 @@ export class SearchEngine {
 						rawMatches.map((match, index) => ({
 							...match,
 							id: index,
-							breadcrumb: this.getBreadcrumb(match.file, match.line, fileLinesCache),
+							breadcrumb: this.getBreadcrumb(
+								match.file,
+								match.line,
+								symbolIndexCache,
+							),
 						})),
 					(m) => ({ matches: m.length }),
 				)
@@ -265,17 +275,18 @@ export class SearchEngine {
 	private getBreadcrumb(
 		filePath: string,
 		matchLine: number,
-		fileLinesCache: Map<string, string[] | null>,
+		symbolIndexCache: Map<string, SymbolEntry[] | null>,
 	): string {
-		let lines = fileLinesCache.get(filePath)
-		if (lines === undefined) {
+		let index = symbolIndexCache.get(filePath)
+		if (index === undefined) {
 			try {
-				lines = fs.readFileSync(filePath, "utf8").split(/\r?\n/)
+				const lines = fs.readFileSync(filePath, "utf8").split(/\r?\n/)
+				index = buildSymbolIndex(lines)
 			} catch {
-				lines = null
+				index = null
 			}
-			fileLinesCache.set(filePath, lines)
+			symbolIndexCache.set(filePath, index)
 		}
-		return lines ? buildBreadcrumb(lines, matchLine) : ""
+		return index ? breadcrumbFromIndex(index, matchLine) : ""
 	}
 }

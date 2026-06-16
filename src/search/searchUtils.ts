@@ -72,18 +72,47 @@ export function extractSymbol(line: string): string | null {
 	return null
 }
 
-export function buildBreadcrumb(lines: string[], matchLine: number): string {
-	const parts: string[] = []
+export interface SymbolEntry {
+	line: number // 0-based line index where the symbol was declared
+	symbol: string
+}
 
-	for (let i = matchLine - 2; i >= 0 && parts.length < 4; i--) {
-		const line = lines[i]
-		const symbol = extractSymbol(line)
+// One pass over the file's lines, collecting every symbol declaration.
+// Result is sorted ascending by line by construction.
+export function buildSymbolIndex(lines: string[]): SymbolEntry[] {
+	const index: SymbolEntry[] = []
+	for (let i = 0; i < lines.length; i++) {
+		const symbol = extractSymbol(lines[i])
 		if (symbol) {
-			parts.unshift(symbol)
+			index.push({ line: i, symbol })
 		}
 	}
+	return index
+}
 
-	return parts.join(" › ")
+// Nearest 4 symbols declared strictly above the match line, top-to-bottom.
+// Binary-searches the sorted index instead of re-scanning the file.
+export function breadcrumbFromIndex(
+	index: SymbolEntry[],
+	matchLine: number,
+): string {
+	const cutoff = matchLine - 2 // 0-based index of the line just above the match
+	// rightmost-insertion search: count of entries with line <= cutoff
+	let lo = 0
+	let hi = index.length
+	while (lo < hi) {
+		const mid = (lo + hi) >> 1
+		if (index[mid].line <= cutoff) {
+			lo = mid + 1
+		} else {
+			hi = mid
+		}
+	}
+	const start = Math.max(0, lo - 4)
+	return index
+		.slice(start, lo)
+		.map((entry) => entry.symbol)
+		.join(" › ")
 }
 
 export function groupByFile(
