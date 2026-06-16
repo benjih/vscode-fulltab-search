@@ -64,7 +64,7 @@ export function renderTokenSpans(spans) {
 /**
  * Renders a line with every match occurrence on it highlighted.
  * @param {string} line
- * @param {Array<{ start: number; end: number; active: boolean }>} ranges
+ * @param {Array<{ start: number; end: number; active: boolean; id?: number }>} ranges
  * @param {TokenSpan[] | undefined} [tokens]
  */
 export function renderLineContent(line, ranges, tokens) {
@@ -80,8 +80,9 @@ export function renderLineContent(line, ranges, tokens) {
 		const highlightClass = range.active
 			? "match-highlight active-highlight"
 			: "match-highlight"
+		const idAttr = range.id == null ? "" : ` data-match-id="${range.id}"`
 		html += renderSlice(pos, range.start)
-		html += `<span class="${highlightClass}">${renderSlice(range.start, range.end)}</span>`
+		html += `<span class="${highlightClass}"${idAttr}>${renderSlice(range.start, range.end)}</span>`
 		pos = range.end
 	}
 	html += renderSlice(pos, line.length)
@@ -94,5 +95,6 @@ export function matchHighlightRanges(lineMatches) {
 		start: m.matchStart,
 		end: m.matchEnd,
 		active: m.id === state.activeMatchIndex,
+		id: m.id,
 	}))
 }

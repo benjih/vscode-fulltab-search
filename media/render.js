@@ -27,6 +27,34 @@ import { patternInput, resultsEl, updateMatchCounter } from "./ui.js"
 /** @typedef {import("./types.js").SearchMatch} SearchMatch */
 /** @typedef {import("./types.js").ContextLine} ContextLine */
 
+/**
+ * Moves the active marker to the match with `matchId` by swapping the
+ * `.active` / `.active-highlight` classes in place, avoiding a full DOM
+ * rebuild. Returns false when the target match isn't currently rendered
+ * (e.g. it lives in a collapsed group), signalling that the caller should
+ * fall back to renderResults().
+ * @param {number} matchId
+ */
+function applyActiveMatch(matchId) {
+	const target = resultsEl.querySelector(
+		`.snippet-line [data-match-id="${matchId}"]`,
+	)
+	if (!target) {
+		return false
+	}
+
+	for (const span of resultsEl.querySelectorAll(".active-highlight")) {
+		span.classList.remove("active-highlight")
+	}
+	for (const row of resultsEl.querySelectorAll(".snippet-line.active")) {
+		row.classList.remove("active")
+	}
+
+	target.classList.add("active-highlight")
+	target.closest(".snippet-line")?.classList.add("active")
+	return true
+}
+
 export function focusMatch(index) {
 	blurActiveEditableLine()
 	const matches = flattenMatches()
@@ -40,14 +68,17 @@ export function focusMatch(index) {
 		((index % matches.length) + matches.length) % matches.length
 	updateMatchCounter()
 
-	// Navigating into a collapsed file group reveals it again.
+	// Navigating into a collapsed file group reveals it and needs a full
+	// re-render; otherwise just move the active marker between rows.
 	const active = matches.find((m) => m.id === state.activeMatchIndex)
-	if (active) {
+	if (active && state.collapsedFiles.has(active.file)) {
 		state.collapsedFiles.delete(active.file)
+		renderResults()
+	} else if (!applyActiveMatch(state.activeMatchIndex)) {
+		renderResults()
 	}
-	renderResults()
 
-	const activeEl = document.querySelector(".snippet-line.active")
+	const activeEl = resultsEl.querySelector(".snippet-line.active")
 	if (activeEl) {
 		activeEl.scrollIntoView({ block: "center", behavior: "smooth" })
 	}
@@ -60,7 +91,10 @@ export function focusMatch(index) {
 function activateMatch(match) {
 	state.activeMatchIndex = match.id
 	updateMatchCounter()
-	renderResults()
+	// The clicked row is already rendered, so an in-place swap suffices.
+	if (!applyActiveMatch(match.id)) {
+		renderResults()
+	}
 	vscode.postMessage({
 		type: "openMatch",
 		file: match.file,
