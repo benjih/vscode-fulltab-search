@@ -81,11 +81,16 @@ suite("SearchEngine Integration Suite", () => {
 		assert.ok(match.breadcrumb.includes("greet"))
 	})
 
-	test("expandContext returns surrounding lines", () => {
+	test("expandContext returns surrounding lines", async () => {
 		assert.ok(vscode.workspace.workspaceFolders)
 		const root = vscode.workspace.workspaceFolders[0].uri.fsPath
 		const filePath = path.join(root, "src", "hello.ts")
-		const { lines, hasMore } = engine.expandContext(filePath, "before", 4, 2)
+		const { lines, hasMore } = await engine.expandContext(
+			filePath,
+			"before",
+			4,
+			2,
+		)
 
 		assert.ok(lines.length > 0)
 		assert.ok(lines.every((line) => line.line < 4))

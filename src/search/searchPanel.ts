@@ -179,7 +179,7 @@ export class SearchPanel {
 				"expandMatch",
 				{ direction },
 				async () => {
-					const { lines, hasMore } = this.engine.expandContext(
+					const { lines, hasMore } = await this.engine.expandContext(
 						file,
 						direction,
 						anchorLine,
@@ -188,7 +188,11 @@ export class SearchPanel {
 					const tokenSpans = await timed(
 						"expandMatch.tokenize",
 						undefined,
-						() => this.tokenizer.tokenizeLines(lines.map((l) => l.text), file),
+						() =>
+							this.tokenizer.tokenizeLines(
+								lines.map((l) => l.text),
+								file,
+							),
 						(spans) => ({ lines: spans.length }),
 					)
 					const tokenizedLines: ContextLine[] = lines.map((l, i) => ({
@@ -243,7 +247,11 @@ export class SearchPanel {
 					)
 					return results
 				},
-				(r) => ({ matches: r.total, files: r.fileResults.length, truncated: r.truncated }),
+				(r) => ({
+					matches: r.total,
+					files: r.fileResults.length,
+					truncated: r.truncated,
+				}),
 			)
 			this.postMessage({ type: "results", results })
 			void this.tokenizeResultsAsync(results)
