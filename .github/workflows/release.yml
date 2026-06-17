@@ -92,11 +92,21 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Install publish tools
+        run: npm install -g @vscode/vsce ovsx
+
       - name: Publish to VS Marketplace
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
         run: |
-          npm install -g @vscode/vsce
           for f in *.vsix; do
             vsce publish --pat "$VSCE_PAT" --packagePath "$f"
+          done
+
+      - name: Publish to Open VSX
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          for f in *.vsix; do
+            ovsx publish "$f" -p "$OVSX_PAT"
           done
