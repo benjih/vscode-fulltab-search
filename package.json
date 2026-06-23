@@ -69,7 +69,9 @@
 		"watch": "tsc -watch -p ./",
 		"lint": "tsc --noEmit -p ./ && biome check . --fix && knip",
 		"test": "npm run test:unit && npm run test:integration",
-		"test:unit": "vitest run",
+		"test:unit": "npm run test:unit:mocha && npm run test:unit:vitest",
+		"test:unit:mocha": "mocha --require tsx/cjs 'src/search/ripgrepParser.test.ts' 'src/search/searchUtils.test.ts'",
+		"test:unit:vitest": "vitest run",
 		"test:unit:watch": "vitest",
 		"test:integration": "npm run compile && node ./out/test/runTest.js",
 		"test:ui": "npm run compile && EXTENSIONS_FOLDER=.test-extensions EXTENSION_DEV_PATH=. extest setup-and-run \"./out/ui-test/**/*.ui.test.js\" --code_version max --code_settings ./src/ui-test/ui-test-settings.json --extensions_dir .test-extensions --storage test-resources -m ./src/ui-test/.mocharc.json --open_resource ./src/test/fixtures/sample-workspace",
@@ -96,6 +98,7 @@
 		"knip": "6.18.0",
 		"mocha": "11.2.2",
 		"pngjs": "^7.0.0",
+		"tsx": "^4.22.4",
 		"typescript": "6.0.3",
 		"vitest": "4.1.9",
 		"vscode-extension-tester": "^8.23.0"
