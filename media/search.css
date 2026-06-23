@@ -293,6 +293,7 @@ input {
 
 .open-file {
 	flex-shrink: 0;
+	margin-left: auto;
 	border: 1px solid var(--vscode-button-border, transparent);
 	background: var(
 		--vscode-button-secondaryBackground,
