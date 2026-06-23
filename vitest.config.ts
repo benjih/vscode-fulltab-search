@@ -10,6 +10,7 @@ export default defineConfig({
 			"src/ui-test/**",
 			"src/search/ripgrepParser.test.ts",
 			"src/search/searchUtils.test.ts",
+			"src/search/enrichResults.test.ts",
 		],
 	},
 })

@@ -70,7 +70,7 @@
 		"lint": "tsc --noEmit -p ./ && biome check . --fix && knip",
 		"test": "npm run test:unit && npm run test:integration",
 		"test:unit": "npm run test:unit:mocha && npm run test:unit:vitest",
-		"test:unit:mocha": "mocha --require tsx/cjs 'src/search/ripgrepParser.test.ts' 'src/search/searchUtils.test.ts'",
+		"test:unit:mocha": "mocha --require tsx/cjs 'src/search/ripgrepParser.test.ts' 'src/search/searchUtils.test.ts' 'src/search/enrichResults.test.ts'",
 		"test:unit:vitest": "vitest run",
 		"test:unit:watch": "vitest",
 		"test:integration": "npm run compile && node ./out/test/runTest.js",
