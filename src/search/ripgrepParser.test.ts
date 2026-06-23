@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import assert from "node:assert"
 import {
 	buildRipgrepArgs,
 	createRipgrepParseState,
@@ -23,10 +23,10 @@ function baseQuery(overrides: Partial<SearchQuery> = {}): SearchQuery {
 describe("buildRipgrepArgs", () => {
 	it("uses fixed-string search by default", () => {
 		const args = buildRipgrepArgs(baseQuery({ pattern: "foo.bar" }), "/root")
-		expect(args).toContain("-F")
-		expect(args).toContain("foo.bar")
-		expect(args).toContain("--ignore-case")
-		expect(args.at(-1)).toBe("/root")
+		assert.ok(args.includes("-F"))
+		assert.ok(args.includes("foo.bar"))
+		assert.ok(args.includes("--ignore-case"))
+		assert.strictEqual(args.at(-1), "/root")
 	})
 
 	it("uses regex mode when enabled", () => {
@@ -34,9 +34,9 @@ describe("buildRipgrepArgs", () => {
 			baseQuery({ useRegex: true, pattern: "foo.*" }),
 			"/root",
 		)
-		expect(args).toContain("-e")
-		expect(args).toContain("foo.*")
-		expect(args).not.toContain("-F")
+		assert.ok(args.includes("-e"))
+		assert.ok(args.includes("foo.*"))
+		assert.ok(!args.includes("-F"))
 	})
 
 	it("adds case and whole-word flags", () => {
@@ -44,13 +44,13 @@ describe("buildRipgrepArgs", () => {
 			baseQuery({ caseSensitive: true, wholeWord: true }),
 			"/root",
 		)
-		expect(args).toContain("--case-sensitive")
-		expect(args).toContain("--word-regexp")
+		assert.ok(args.includes("--case-sensitive"))
+		assert.ok(args.includes("--word-regexp"))
 	})
 
 	it("includes hidden files and directories", () => {
 		const args = buildRipgrepArgs(baseQuery(), "/root")
-		expect(args).toContain("--hidden")
+		assert.ok(args.includes("--hidden"))
 	})
 
 	it("adds include and exclude globs with normalization", () => {
@@ -58,10 +58,8 @@ describe("buildRipgrepArgs", () => {
 			baseQuery({ include: "src/**", exclude: "*.log, dist/**" }),
 			"/root",
 		)
-		expect(args).toContain("-g")
-		expect(args).toEqual(
-			expect.arrayContaining(["**/src/**", "!*.log", "!**/dist/**"]),
-		)
+		assert.ok(args.includes("-g"))
+		assert.ok(["**/src/**", "!*.log", "!**/dist/**"].every((x) => args.includes(x)))
 	})
 })
 
@@ -101,13 +99,13 @@ describe("parseRipgrepLine", () => {
 		)
 		parseRipgrepLine(JSON.stringify({ type: "end" }), state)
 
-		expect(state.matches).toHaveLength(1)
-		expect(state.matches[0].file).toBe("/proj/src/a.ts")
-		expect(state.matches[0].line).toBe(2)
-		expect(state.matches[0].matchStart).toBe(0)
-		expect(state.matches[0].matchEnd).toBe(6)
-		expect(state.matches[0].contextBefore).toHaveLength(1)
-		expect(state.matches[0].contextBefore[0].text).toBe("before")
+		assert.strictEqual(state.matches.length, 1)
+		assert.strictEqual(state.matches[0].file, "/proj/src/a.ts")
+		assert.strictEqual(state.matches[0].line, 2)
+		assert.strictEqual(state.matches[0].matchStart, 0)
+		assert.strictEqual(state.matches[0].matchEnd, 6)
+		assert.strictEqual(state.matches[0].contextBefore.length, 1)
+		assert.strictEqual(state.matches[0].contextBefore[0].text, "before")
 	})
 
 	it("emits one match per submatch when a line has multiple occurrences", () => {
@@ -129,24 +127,24 @@ describe("parseRipgrepLine", () => {
 			state,
 		)
 
-		expect(state.matches).toHaveLength(2)
-		expect(state.matches[0].matchStart).toBe(0)
-		expect(state.matches[0].matchEnd).toBe(6)
-		expect(state.matches[1].matchStart).toBe(11)
-		expect(state.matches[1].matchEnd).toBe(17)
-		expect(state.matches[1].line).toBe(5)
+		assert.strictEqual(state.matches.length, 2)
+		assert.strictEqual(state.matches[0].matchStart, 0)
+		assert.strictEqual(state.matches[0].matchEnd, 6)
+		assert.strictEqual(state.matches[1].matchStart, 11)
+		assert.strictEqual(state.matches[1].matchEnd, 17)
+		assert.strictEqual(state.matches[1].line, 5)
 	})
 
 	it("ignores invalid JSON lines", () => {
 		const state = createRipgrepParseState()
 		parseRipgrepLine("not json", state)
-		expect(state.matches).toHaveLength(0)
+		assert.strictEqual(state.matches.length, 0)
 	})
 
 	it("resets state on begin and end", () => {
 		const state = createRipgrepParseState()
 		state.pendingBefore = [{ line: 1, text: "x" }]
 		parseRipgrepLine(JSON.stringify({ type: "begin" }), state)
-		expect(state.pendingBefore).toHaveLength(0)
+		assert.strictEqual(state.pendingBefore.length, 0)
 	})
 })

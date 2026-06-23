@@ -1,5 +1,5 @@
+import assert from "node:assert"
 import * as path from "node:path"
-import { describe, expect, it } from "vitest"
 import {
 	breadcrumbFromIndex,
 	buildSymbolIndex,
@@ -14,83 +14,95 @@ import type { SearchMatch } from "./types"
 describe("splitLines", () => {
 	it("returns complete lines and holds back the incomplete remainder", () => {
 		const { lines, remainder } = splitLines("", "line1\nline2\npartial")
-		expect(lines).toEqual(["line1", "line2"])
-		expect(remainder).toBe("partial")
+		assert.deepEqual(lines, ["line1", "line2"])
+		assert.strictEqual(remainder, "partial")
 	})
 
 	it("assembles a line split across two chunks", () => {
 		const first = splitLines("", "start-of-very-long-")
 		const second = splitLines(first.remainder, "line\nnext\n")
-		expect(second.lines).toEqual(["start-of-very-long-line", "next"])
-		expect(second.remainder).toBe("")
+		assert.deepEqual(second.lines, ["start-of-very-long-line", "next"])
+		assert.strictEqual(second.remainder, "")
 	})
 
 	it("handles chunks with no newline", () => {
 		const { lines, remainder } = splitLines("already", "-buffered")
-		expect(lines).toEqual([])
-		expect(remainder).toBe("already-buffered")
+		assert.deepEqual(lines, [])
+		assert.strictEqual(remainder, "already-buffered")
 	})
 })
 
 describe("normalizeGlob", () => {
 	it("leaves already-anchored patterns alone", () => {
-		expect(normalizeGlob("**/src/**")).toBe("**/src/**")
-		expect(normalizeGlob("/absolute/path")).toBe("/absolute/path")
+		assert.strictEqual(normalizeGlob("**/src/**"), "**/src/**")
+		assert.strictEqual(normalizeGlob("/absolute/path"), "/absolute/path")
 	})
 
 	it("wraps bare directory names with **/ and /**", () => {
-		expect(normalizeGlob("src")).toBe("**/src/**")
-		expect(normalizeGlob("src/search")).toBe("**/src/search/**")
+		assert.strictEqual(normalizeGlob("src"), "**/src/**")
+		assert.strictEqual(normalizeGlob("src/search"), "**/src/search/**")
 	})
 
 	it("anchors patterns with path separators", () => {
-		expect(normalizeGlob("src/**")).toBe("**/src/**")
-		expect(normalizeGlob("test/**")).toBe("**/test/**")
+		assert.strictEqual(normalizeGlob("src/**"), "**/src/**")
+		assert.strictEqual(normalizeGlob("test/**"), "**/test/**")
 	})
 
 	it("converts trailing /* to /** for recursive matching", () => {
-		expect(normalizeGlob("packages/m2-typings/*")).toBe(
+		assert.strictEqual(
+			normalizeGlob("packages/m2-typings/*"),
 			"**/packages/m2-typings/**",
 		)
 	})
 
 	it("leaves basename-only wildcard patterns alone", () => {
-		expect(normalizeGlob("*.ts")).toBe("*.ts")
-		expect(normalizeGlob("*.test.ts")).toBe("*.test.ts")
+		assert.strictEqual(normalizeGlob("*.ts"), "*.ts")
+		assert.strictEqual(normalizeGlob("*.test.ts"), "*.test.ts")
 	})
 })
 
 describe("splitPatterns", () => {
 	it("splits comma-separated globs and trims whitespace", () => {
-		expect(splitPatterns("src/**, , *.ts")).toEqual(["src/**", "*.ts"])
+		assert.deepEqual(splitPatterns("src/**, , *.ts"), ["src/**", "*.ts"])
 	})
 
 	it("returns empty array for blank input", () => {
-		expect(splitPatterns("  ,  , ")).toEqual([])
+		assert.deepEqual(splitPatterns("  ,  , "), [])
 	})
 })
 
 describe("extractSymbol", () => {
 	it("extracts TypeScript function names", () => {
-		expect(extractSymbol("async function fetchData() {")).toBe("fn fetchData")
-		expect(extractSymbol("export async function fetchData() {")).toBe(
+		assert.strictEqual(
+			extractSymbol("async function fetchData() {"),
+			"fn fetchData",
+		)
+		assert.strictEqual(
+			extractSymbol("export async function fetchData() {"),
 			"fetchData",
 		)
 	})
 
 	it("extracts Rust function names", () => {
-		expect(extractSymbol("fn search_workspace() {")).toBe("fn search_workspace")
-		expect(extractSymbol("pub fn search_workspace() {")).toBe(
+		assert.strictEqual(
+			extractSymbol("fn search_workspace() {"),
+			"fn search_workspace",
+		)
+		assert.strictEqual(
+			extractSymbol("pub fn search_workspace() {"),
 			"search_workspace",
 		)
 	})
 
 	it("extracts class names", () => {
-		expect(extractSymbol("export class SearchEngine {")).toBe("SearchEngine")
+		assert.strictEqual(
+			extractSymbol("export class SearchEngine {"),
+			"SearchEngine",
+		)
 	})
 
 	it("returns null for non-symbol lines", () => {
-		expect(extractSymbol("const x = 1;")).toBeNull()
+		assert.strictEqual(extractSymbol("const x = 1;"), null)
 	})
 })
 
@@ -101,14 +113,14 @@ describe("buildSymbolIndex", () => {
 			"  const x = 1;",
 			"export class Inner {",
 		]
-		expect(buildSymbolIndex(lines)).toEqual([
+		assert.deepEqual(buildSymbolIndex(lines), [
 			{ line: 0, symbol: "outer" },
 			{ line: 2, symbol: "Inner" },
 		])
 	})
 
 	it("skips lines without a symbol", () => {
-		expect(buildSymbolIndex(["const x = 1;", "  return y;"])).toEqual([])
+		assert.deepEqual(buildSymbolIndex(["const x = 1;", "  return y;"]), [])
 	})
 })
 
@@ -118,7 +130,7 @@ describe("breadcrumbFromIndex", () => {
 			"export function outer() {",
 			"  return fulltab_marker;",
 		])
-		expect(breadcrumbFromIndex(index, 2)).toBe("outer")
+		assert.strictEqual(breadcrumbFromIndex(index, 2), "outer")
 	})
 
 	it("returns only the nearest 4 symbols, top-to-bottom", () => {
@@ -129,8 +141,7 @@ describe("breadcrumbFromIndex", () => {
 			{ line: 3, symbol: "d" },
 			{ line: 4, symbol: "e" },
 		]
-		// match on line 6 (1-based) → all 5 are above; keep nearest 4
-		expect(breadcrumbFromIndex(index, 6)).toBe("b › c › d › e")
+		assert.strictEqual(breadcrumbFromIndex(index, 6), "b › c › d › e")
 	})
 
 	it("excludes symbols at or below the match line", () => {
@@ -138,8 +149,7 @@ describe("breadcrumbFromIndex", () => {
 			{ line: 0, symbol: "a" },
 			{ line: 5, symbol: "b" },
 		]
-		// match on line 3 (1-based, 0-based index 2): only `a` is strictly above
-		expect(breadcrumbFromIndex(index, 3)).toBe("a")
+		assert.strictEqual(breadcrumbFromIndex(index, 3), "a")
 	})
 })
 
@@ -191,14 +201,14 @@ describe("groupByFile", () => {
 		]
 
 		const grouped = groupByFile(matches, root)
-		expect(grouped).toHaveLength(2)
+		assert.strictEqual(grouped.length, 2)
 
 		const a = grouped.find((entry) => entry.fileName === "a.ts")
-		expect(a?.relativePath).toBe(path.join("src", "a.ts"))
-		expect(a?.directory).toBe("src")
-		expect(a?.matches).toHaveLength(2)
+		assert.strictEqual(a?.relativePath, path.join("src", "a.ts"))
+		assert.strictEqual(a?.directory, "src")
+		assert.strictEqual(a?.matches.length, 2)
 
 		const b = grouped.find((entry) => entry.fileName === "b.ts")
-		expect(b?.matches).toHaveLength(1)
+		assert.strictEqual(b?.matches.length, 1)
 	})
 })
