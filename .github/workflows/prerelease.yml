@@ -31,7 +31,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v5.0.1
+      - uses: actions/checkout@v6.0.3
 
       - uses: jetify-com/devbox-install-action@v0.15.0
         if: matrix.use_devbox
@@ -75,7 +75,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v5.0.1
+      - uses: actions/checkout@v6.0.3
 
       - name: Compute version
         id: version
