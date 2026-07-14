@@ -15,13 +15,18 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v6.0.3
+        with:
+          fetch-depth: 0
 
       - name: Delete stale pre-releases
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
-          CURRENT=$(jq -r '.version' package.json)
+          # Latest stable release tag; prerelease tags (v*-<sha>) are excluded.
+          CURRENT=$(git tag -l 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1)
+          CURRENT="${CURRENT#v}"
+          CURRENT="${CURRENT:-0.0.0}"
           echo "Current version: $CURRENT"
 
           # Pre-release tags look like v<semver>-<sha>; extract the <semver> part.

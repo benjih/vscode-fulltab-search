@@ -32,6 +32,8 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v6.0.3
+        with:
+          fetch-depth: 0
 
       - uses: jetify-com/devbox-install-action@v0.15.0
         if: matrix.use_devbox
@@ -47,8 +49,10 @@ jobs:
         shell: bash
         run: |
           SHORT_SHA="${GITHUB_SHA::7}"
-          CURRENT_VERSION=$(jq -r '.version' package.json)
-          VERSION="v${CURRENT_VERSION}-${SHORT_SHA}"
+          # Base on the latest stable release tag; prerelease tags (v*-<sha>) are excluded.
+          BASE=$(git tag -l 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1)
+          BASE="${BASE#v}"
+          VERSION="v${BASE:-0.0.0}-${SHORT_SHA}"
           jq --arg v "$VERSION" '.version = $v' package.json > package.json.tmp
           mv package.json.tmp package.json
 
@@ -76,13 +80,16 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v6.0.3
+        with:
+          fetch-depth: 0
 
       - name: Compute version
         id: version
         run: |
           SHORT_SHA="${GITHUB_SHA::7}"
-          CURRENT_VERSION=$(jq -r '.version' package.json)
-          echo "version=v${CURRENT_VERSION}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          BASE=$(git tag -l 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1)
+          BASE="${BASE#v}"
+          echo "version=v${BASE:-0.0.0}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/download-artifact@v4
         with:
