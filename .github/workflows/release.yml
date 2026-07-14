@@ -39,7 +39,7 @@ jobs:
         with:
           enable-cache: true
 
-      - uses: actions/setup-node@v6.4.0
+      - uses: actions/setup-node@v6.5.0
         if: ${{ !matrix.use_devbox }}
         with:
           node-version: "22"
@@ -99,7 +99,7 @@ jobs:
           pattern: vsix-*
           merge-multiple: true
 
-      - uses: actions/setup-node@v6.4.0
+      - uses: actions/setup-node@v6.5.0
         with:
           node-version: "22"
 
@@ -125,7 +125,7 @@ jobs:
           pattern: vsix-*
           merge-multiple: true
 
-      - uses: actions/setup-node@v6.4.0
+      - uses: actions/setup-node@v6.5.0
         with:
           node-version: "22"
 
