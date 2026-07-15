@@ -135,6 +135,48 @@ describe("parseRipgrepLine", () => {
 		assert.strictEqual(state.matches[1].line, 5)
 	})
 
+	it("converts byte offsets to code-unit offsets for non-ASCII lines", () => {
+		const state = createRipgrepParseState()
+
+		// "café " is 6 bytes (é = 2) but 5 code units, "🎉 " is 5 bytes
+		// (🎉 = 4) but 3 code units, "日" is 3 bytes but 1 code unit.
+		const lineText = "café 🎉 日 needle needle"
+		const byteStart = Buffer.byteLength("café 🎉 日 ")
+		parseRipgrepLine(
+			JSON.stringify({
+				type: "match",
+				data: {
+					path: { text: "/proj/src/a.ts" },
+					lines: { text: `${lineText}\n` },
+					line_number: 3,
+					submatches: [
+						{ start: byteStart, end: byteStart + 6, match: { text: "needle" } },
+						{
+							start: byteStart + 7,
+							end: byteStart + 13,
+							match: { text: "needle" },
+						},
+					],
+				},
+			}),
+			state,
+		)
+
+		assert.strictEqual(state.matches.length, 2)
+		const [first, second] = state.matches
+		assert.strictEqual(
+			lineText.slice(first.matchStart, first.matchEnd),
+			"needle",
+		)
+		assert.strictEqual(first.matchStart, lineText.indexOf("needle"))
+		assert.strictEqual(first.column, first.matchStart)
+		assert.strictEqual(
+			lineText.slice(second.matchStart, second.matchEnd),
+			"needle",
+		)
+		assert.strictEqual(second.matchStart, lineText.lastIndexOf("needle"))
+	})
+
 	it("ignores invalid JSON lines", () => {
 		const state = createRipgrepParseState()
 		parseRipgrepLine("not json", state)

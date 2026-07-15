@@ -30,6 +30,37 @@ export function createRipgrepParseState(): RipgrepParseState {
 	}
 }
 
+// Ripgrep reports submatch offsets as byte positions in the UTF-8 line, but
+// consumers (highlighting, vscode.Position/Range) index by UTF-16 code units.
+// Submatches arrive in ascending order, so one incremental walk per line
+// converts every offset in O(line length).
+function createByteToCodeUnitConverter(
+	text: string,
+): (byteOffset: number) => number {
+	let byte = 0
+	let unit = 0
+	return (byteOffset) => {
+		if (byteOffset < byte) {
+			byte = 0
+			unit = 0
+		}
+		while (byte < byteOffset && unit < text.length) {
+			const codePoint = text.codePointAt(unit) as number
+			if (codePoint <= 0x7f) {
+				byte += 1
+			} else if (codePoint <= 0x7ff) {
+				byte += 2
+			} else if (codePoint <= 0xffff) {
+				byte += 3
+			} else {
+				byte += 4
+			}
+			unit += codePoint > 0xffff ? 2 : 1
+		}
+		return unit
+	}
+}
+
 export function parseRipgrepLine(line: string, state: RipgrepParseState): void {
 	if (!line.trim()) {
 		return
@@ -74,15 +105,18 @@ export function parseRipgrepLine(line: string, state: RipgrepParseState): void {
 				// Ripgrep emits one match event per line; every occurrence on that
 				// line arrives in `submatches`. Emit a match per occurrence so
 				// navigation and replace cover them all.
+				const toCodeUnit = createByteToCodeUnitConverter(lineText)
 				for (const submatch of submatches) {
+					const matchStart = toCodeUnit(submatch.start)
+					const matchEnd = toCodeUnit(submatch.end)
 					const match: RawSearchMatch = {
 						file: parsed.data.path.text,
 						relativePath: parsed.data.path.text,
 						line: parsed.data.line_number ?? 1,
-						column: submatch.start,
+						column: matchStart,
 						lineText,
-						matchStart: submatch.start,
-						matchEnd: submatch.end,
+						matchStart,
+						matchEnd,
 						contextBefore,
 						contextAfter: [],
 					}
