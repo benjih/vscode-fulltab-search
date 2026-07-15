@@ -100,7 +100,7 @@
 		"pngjs": "^7.0.0",
 		"tsx": "^4.22.4",
 		"typescript": "6.0.3",
-		"vitest": "4.1.9",
+		"vitest": "4.1.10",
 		"vscode-extension-tester": "^8.23.0"
 	}
 }
