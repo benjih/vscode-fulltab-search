@@ -52,7 +52,10 @@ jobs:
           # Base on the latest stable release tag; prerelease tags (v*-<sha>) are excluded.
           BASE=$(git tag -l 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1)
           BASE="${BASE#v}"
-          VERSION="v${BASE:-0.0.0}-${SHORT_SHA}"
+          # Bump the patch so prereleases target the next upcoming version.
+          IFS='.' read -r MAJOR MINOR PATCH <<< "${BASE:-0.0.0}"
+          NEXT="${MAJOR}.${MINOR}.$((PATCH + 1))"
+          VERSION="v${NEXT}-${SHORT_SHA}"
           jq --arg v "$VERSION" '.version = $v' package.json > package.json.tmp
           mv package.json.tmp package.json
 
@@ -89,7 +92,10 @@ jobs:
           SHORT_SHA="${GITHUB_SHA::7}"
           BASE=$(git tag -l 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1)
           BASE="${BASE#v}"
-          echo "version=v${BASE:-0.0.0}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          # Bump the patch so prereleases target the next upcoming version.
+          IFS='.' read -r MAJOR MINOR PATCH <<< "${BASE:-0.0.0}"
+          NEXT="${MAJOR}.${MINOR}.$((PATCH + 1))"
+          echo "version=v${NEXT}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/download-artifact@v4
         with:
