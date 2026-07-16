@@ -1,22 +1,42 @@
+# Editor / tooling config
 .vscode/**
 .vscode-test/**
-src/**
-.gitignore
-.yarnrc
-vsc-extension-quickstart.md
-**/tsconfig.json
-**/.eslintrc.json
-**/*.map
-**/*.ts
+.github/**
 .devcontainer/**
 .devbox/**
-.github/**
-devbox.json
-devbox.lock
 .envrc
+.gitignore
+.yarnrc
 Makefile
+biome.json
+knip.json
+vitest.config.ts
+**/tsconfig.json
+**/.eslintrc.json
+vsc-extension-quickstart.md
+
+# Agent / editor assistant config (personal, not for distribution)
+.claude/**
+.kilo/**
+
+# Sources & build artifacts not needed at runtime
+src/**
+out/test/**
+out/ui-test/**
+**/*.ts
+**/*.map
+
+# Dev-only assets & scripts
+docs/**
+demo/**
+scripts/**
 test-resources/**
 .test-extensions/**
-vitest.config.ts
-src/ui-test/**
-src/test/**
+
+# Local logs & prior packages
+**/*.ndjson
+*.vsix
+
+# devbox
+devbox.json
+devbox.lock
