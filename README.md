@@ -2,6 +2,8 @@
 
 Project search in a full editor tab — with inline, editable results. Search your whole workspace, see matches with syntax-highlighted context, and edit them right there in the results, multi-buffer style like Zed.
 
+Available on the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=benjih.fulltab-search) and [Open VSX](https://open-vsx.org/extension/benjih/fulltab-search).
+
 ![FullTab Search demo: searching a workspace, navigating matches, editing a result line inline, and saving](docs/demo.gif)
 
 ## Why
@@ -41,7 +43,7 @@ Edits go through VS Code's standard workspace edit API, so they show up as norma
 
 ## Getting started
 
-1. Install the extension
+1. Install the extension from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=benjih.fulltab-search) or [Open VSX](https://open-vsx.org/extension/benjih/fulltab-search)
 2. Open it via the **FullTab Search** icon in the activity bar, or run **FullTab Search: Open Project Search** from the Command Palette
 
 ### Keyboard shortcuts (inside the search panel)
