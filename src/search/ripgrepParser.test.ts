@@ -53,6 +53,11 @@ describe("buildRipgrepArgs", () => {
 		assert.ok(args.includes("--hidden"))
 	})
 
+	it("excludes the .git directory even with --hidden", () => {
+		const args = buildRipgrepArgs(baseQuery(), "/root")
+		assert.ok(args.includes("!.git"))
+	})
+
 	it("adds include and exclude globs with normalization", () => {
 		const args = buildRipgrepArgs(
 			baseQuery({ include: "src/**", exclude: "*.log, dist/**" }),
