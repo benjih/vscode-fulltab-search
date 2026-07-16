@@ -97,7 +97,7 @@ jobs:
           NEXT="${MAJOR}.${MINOR}.$((PATCH + 1))"
           echo "version=v${NEXT}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/download-artifact@v4.3.0
+      - uses: actions/download-artifact@v5.0.0
         with:
           pattern: vsix-*
           merge-multiple: true
