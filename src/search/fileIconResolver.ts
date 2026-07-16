@@ -226,15 +226,35 @@ export class FileIconResolver {
 
 	private lookupId(fileName: string): string | null {
 		const lower = fileName.toLowerCase()
-		const dotIdx = lower.lastIndexOf(".")
-		const ext = dotIdx >= 0 ? lower.slice(dotIdx + 1) : ""
-		const langId = this.extToLangId.get(ext)
-		return (
-			this.byFileName.get(lower) ??
-			(langId !== undefined ? this.byLanguageId.get(langId) : undefined) ??
-			this.byExtension.get(ext) ??
-			this.defaultId
-		)
+
+		// Precedence follows VS Code icon themes: file name → file extension →
+		// language ID. Extensions are matched most-specific (longest) first so
+		// multi-part extensions like ".test.ts" beat ".ts".
+
+		// 1. Exact file name.
+		const byName = this.byFileName.get(lower)
+		if (byName !== undefined) return byName
+
+		// Dot segments of "a.test.ts" → try "test.ts" before "ts".
+		const segments = lower.split(".")
+
+		// 2. File extension, longest first.
+		for (let i = 1; i < segments.length; i++) {
+			const ext = segments.slice(i).join(".")
+			const byExt = this.byExtension.get(ext)
+			if (byExt !== undefined) return byExt
+		}
+
+		// 3. Language ID, resolved from the file's most-specific extension.
+		for (let i = 1; i < segments.length; i++) {
+			const ext = segments.slice(i).join(".")
+			const langId = this.extToLangId.get(ext)
+			if (langId !== undefined) {
+				return this.byLanguageId.get(langId) ?? this.defaultId
+			}
+		}
+
+		return this.defaultId
 	}
 
 	resolveWebviewUri(fileName: string, webview: vscode.Webview): string | null {
