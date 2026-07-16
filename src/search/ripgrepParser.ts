@@ -142,6 +142,11 @@ export function buildRipgrepArgs(
 		"--line-number",
 		"--no-heading",
 		"--hidden",
+		// --hidden makes ripgrep descend into .git/; exclude it so matches in
+		// repository internals (config, hooks, logs) don't surface. VS Code's
+		// own search does the equivalent.
+		"-g",
+		"!.git",
 		`--max-count=${MAX_RESULTS}`,
 		`-C${CONTEXT_LINES}`,
 	]
