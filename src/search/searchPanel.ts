@@ -106,64 +106,76 @@ export class SearchPanel {
 		void this.panel.webview.postMessage(message)
 	}
 
+	// A single catch-all so a failing handler (a stale line number, a deleted
+	// file) surfaces as an error in the webview instead of a silent unhandled
+	// rejection — the webview optimistically updates its model before the host
+	// confirms, so a swallowed failure leaves the UI showing text that was
+	// never applied. Handlers with their own try/catch post more specific
+	// messages and never reach this one.
 	private async handleMessage(message: WebviewMessage): Promise<void> {
-		switch (message.type) {
-			case "ready":
-				this.postMessage({
-					type: "init",
-					state: null,
-				})
-				break
-			case "search":
-				await this.runSearch(message.state)
-				break
-			case "cancel":
-				this.cancelSearch()
-				break
-			case "openMatch":
-				await this.openMatch(message.file, message.line, message.column)
-				break
-			case "replaceMatch":
-				await this.replaceMatch(
-					message.file,
-					message.line,
-					message.column,
-					message.length,
-					message.replacement,
-				)
-				break
-			case "replaceAll":
-				await this.runReplaceAll(message.state)
-				break
-			case "expandMatch":
-				await this.expandMatch(
-					message.matchId,
-					message.file,
-					message.direction,
-					message.anchorLine,
-					message.count,
-				)
-				break
-			case "editLine":
-				await this.editLine(message.file, message.line, message.newContent)
-				break
-			case "splitLine":
-				await this.splitLine(
-					message.file,
-					message.line,
-					message.before,
-					message.after,
-				)
-				break
-			case "joinLines":
-				await this.joinLines(message.file, message.line, message.mergedContent)
-				break
-			case "saveEdits":
-				await this.saveEdits()
-				break
-			case "tokenizeLine":
-				await this.tokenizeLine(message.file, message.line, message.text)
-				break
+		try {
+			switch (message.type) {
+				case "ready":
+					this.postMessage({
+						type: "init",
+						state: null,
+					})
+					break
+				case "search":
+					await this.runSearch(message.state)
+					break
+				case "cancel":
+					this.cancelSearch()
+					break
+				case "openMatch":
+					await this.openMatch(message.file, message.line, message.column)
+					break
+				case "replaceMatch":
+					await this.replaceMatch(
+						message.file,
+						message.line,
+						message.column,
+						message.length,
+						message.replacement,
+					)
+					break
+				case "replaceAll":
+					await this.runReplaceAll(message.state)
+					break
+				case "expandMatch":
+					await this.expandMatch(
+						message.matchId,
+						message.file,
+						message.direction,
+						message.anchorLine,
+						message.count,
+					)
+					break
+				case "editLine":
+					await this.editLine(message.file, message.line, message.newContent)
+					break
+				case "splitLine":
+					await this.splitLine(
+						message.file,
+						message.line,
+						message.before,
+						message.after,
+					)
+					break
+				case "joinLines":
+					await this.joinLines(message.file, message.line, message.mergedContent)
+					break
+				case "saveEdits":
+					await this.saveEdits()
+					break
+				case "tokenizeLine":
+					await this.tokenizeLine(message.file, message.line, message.text)
+					break
+			}
+		} catch (error) {
+			const detail =
+				error instanceof Error ? error.message : "Operation failed"
+			this.postMessage({ type: "error", message: detail })
 		}
 	}
 
