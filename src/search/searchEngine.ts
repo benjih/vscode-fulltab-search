@@ -81,11 +81,11 @@ export class SearchEngine {
 			"search",
 			queryDetails,
 			async () => {
-				const rawMatches = await timed(
+				const { matches: rawMatches, warning: ripgrepWarning } = await timed(
 					"search.ripgrep",
 					queryDetails,
 					() => this.runRipgrep(args, token),
-					(m) => ({ matches: m.length }),
+					(r) => ({ matches: r.matches.length }),
 				)
 
 				const symbolIndexCache = new Map<
@@ -123,6 +123,7 @@ export class SearchEngine {
 					fileResults,
 					total: matches.length,
 					truncated,
+					warning: ripgrepWarning,
 				}
 			},
 			(r) => ({
@@ -232,7 +233,10 @@ export class SearchEngine {
 	private runRipgrep(
 		args: string[],
 		token: vscode.CancellationToken,
-	): Promise<Omit<SearchMatch, "id" | "breadcrumb">[]> {
+	): Promise<{
+		matches: Omit<SearchMatch, "id" | "breadcrumb">[]
+		warning?: string
+	}> {
 		return new Promise((resolve, reject) => {
 			const state = createRipgrepParseState()
 			let stderr = ""
@@ -278,16 +282,26 @@ export class SearchEngine {
 				this.activeProcess = null
 
 				if (token.isCancellationRequested) {
-					resolve(state.matches)
+					resolve({ matches: state.matches })
 					return
 				}
 
-				if (code !== 0 && code !== 1 && stderr.trim()) {
-					reject(new Error(stderr.trim()))
+				const trimmedStderr = stderr.trim()
+				if (code !== 0 && code !== 1 && trimmedStderr) {
+					// ripgrep exits 2 both for fatal errors (bad pattern/glob — nothing
+					// was found) and for non-fatal per-file errors (unreadable file,
+					// broken symlink) encountered while otherwise searching normally.
+					// Only treat it as fatal when no matches were collected; otherwise
+					// keep the good matches and surface the stderr as a warning.
+					if (state.matches.length === 0) {
+						reject(new Error(trimmedStderr))
+						return
+					}
+					resolve({ matches: state.matches, warning: trimmedStderr })
 					return
 				}
 
-				resolve(state.matches)
+				resolve({ matches: state.matches })
 			})
 		})
 	}
