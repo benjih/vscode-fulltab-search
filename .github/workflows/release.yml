@@ -139,3 +139,9 @@ jobs:
           for f in *.vsix; do
             ovsx publish "$f" -p "$OVSX_PAT"
           done
+
+  cleanup-prereleases:
+    needs: [publish-vsce, publish-ovsx]
+    permissions:
+      contents: write
+    uses: ./.github/workflows/cleanup-prereleases.yml
