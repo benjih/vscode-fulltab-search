@@ -1,4 +1,5 @@
 import * as assert from "node:assert"
+import * as fs from "node:fs/promises"
 import * as path from "node:path"
 import * as vscode from "vscode"
 import { SearchEngine } from "../../search/searchEngine"
@@ -34,6 +35,32 @@ suite("SearchEngine Integration Suite", () => {
 		assert.ok(relativePaths.some((p) => p.endsWith("utils.ts")))
 		assert.ok(relativePaths.some((p) => p.endsWith("marker.json")))
 		assert.ok(relativePaths.some((p) => p.endsWith("marker.md")))
+	})
+
+	test("keeps matches and surfaces a warning when a file is unreadable", async function () {
+		this.timeout(15_000)
+		// chmod 0 has no effect when running as root, and doesn't restrict
+		// reads on Windows the way it does on POSIX — skip there.
+		if (process.platform === "win32" || process.getuid?.() === 0) {
+			this.skip()
+			return
+		}
+
+		assert.ok(vscode.workspace.workspaceFolders)
+		const root = vscode.workspace.workspaceFolders[0].uri.fsPath
+		const unreadablePath = path.join(root, "src", "unreadable-marker.ts")
+		await fs.writeFile(unreadablePath, `// ${MARKER}\n`)
+		await fs.chmod(unreadablePath, 0)
+
+		try {
+			const results = await engine.search(makeQuery(), tokenSource.token)
+
+			assert.strictEqual(results.total, 4)
+			assert.ok(results.warning?.includes("unreadable-marker.ts"))
+		} finally {
+			await fs.chmod(unreadablePath, 0o644)
+			await fs.unlink(unreadablePath)
+		}
 	})
 
 	test("respects include glob", async function () {

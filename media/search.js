@@ -164,10 +164,13 @@ window.addEventListener("message", (event) => {
 			state.activeMatchIndex = 0
 			renderResults()
 			updateMatchCounter()
+			const resultsSummary = message.results.truncated
+				? `${message.results.total}+ results (truncated)`
+				: `${message.results.total} result${message.results.total === 1 ? "" : "s"} in ${message.results.fileResults.length} file${message.results.fileResults.length === 1 ? "" : "s"}`
 			setStatus(
-				message.results.truncated
-					? `${message.results.total}+ results (truncated)`
-					: `${message.results.total} result${message.results.total === 1 ? "" : "s"} in ${message.results.fileResults.length} file${message.results.fileResults.length === 1 ? "" : "s"}`,
+				message.results.warning
+					? `${resultsSummary} — ${message.results.warning}`
+					: resultsSummary,
 			)
 			break
 		}

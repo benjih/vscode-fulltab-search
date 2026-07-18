@@ -49,6 +49,7 @@ export interface SearchResults {
 	fileResults: FileResult[]
 	total: number
 	truncated: boolean
+	warning?: string
 }
 
 export interface SearchState {
