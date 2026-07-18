@@ -16,7 +16,7 @@ export async function applyLineEdit(
 	const target = document.lineAt(line - 1)
 	const edit = new vscode.WorkspaceEdit()
 	edit.replace(uri, target.range, newContent)
-	await vscode.workspace.applyEdit(edit)
+	if (!(await vscode.workspace.applyEdit(edit))) throw new Error("Edit failed")
 	return uri
 }
 
@@ -36,7 +36,7 @@ export async function applyLineSplit(
 	const eol = document.eol === vscode.EndOfLine.CRLF ? "\r\n" : "\n"
 	const edit = new vscode.WorkspaceEdit()
 	edit.replace(uri, target.range, `${before}${eol}${after}`)
-	await vscode.workspace.applyEdit(edit)
+	if (!(await vscode.workspace.applyEdit(edit))) throw new Error("Split failed")
 	return uri
 }
 
@@ -62,6 +62,6 @@ export async function applyLineJoin(
 		new vscode.Range(prevLine.range.start, currLine.range.end),
 		mergedContent,
 	)
-	await vscode.workspace.applyEdit(edit)
+	if (!(await vscode.workspace.applyEdit(edit))) throw new Error("Join failed")
 	return uri
 }
