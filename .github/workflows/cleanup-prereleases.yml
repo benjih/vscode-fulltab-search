@@ -2,6 +2,7 @@ name: Cleanup pre-releases
 
 on:
   workflow_dispatch:
+  workflow_call:
 
 jobs:
   cleanup:
