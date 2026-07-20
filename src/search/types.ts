@@ -64,7 +64,6 @@ export interface SearchState {
 
 export type WebviewMessage =
 	| { type: "search"; state: SearchState }
-	| { type: "cancel" }
 	| { type: "openMatch"; file: string; line: number; column: number }
 	| {
 			type: "replaceMatch"

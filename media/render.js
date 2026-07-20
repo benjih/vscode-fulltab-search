@@ -20,7 +20,6 @@ import {
 	getLastLineNumber,
 	state,
 } from "./model.js"
-import { disconnectContextObserver, observeBlockContext } from "./tokens.js"
 import { patternInput, resultsEl, updateMatchCounter } from "./ui.js"
 
 /** @typedef {import("./types.js").TokenSpan} TokenSpan */
@@ -350,18 +349,6 @@ function renderMatchSection(matches) {
 		block.appendChild(meta)
 	}
 
-	// Register with IntersectionObserver so context tokens are loaded lazily
-	const allContextLines = lines
-		.filter((entry) => entry.matches.length === 0)
-		.map((entry) => ({ line: entry.lineNumber, text: entry.text }))
-	if (allContextLines.length > 0) {
-		observeBlockContext(block, {
-			file,
-			lines: allContextLines,
-			firstMatchId: firstMatch.id,
-		})
-	}
-
 	return block
 }
 
@@ -377,7 +364,6 @@ function renderSplash() {
 }
 
 export function renderResults() {
-	disconnectContextObserver()
 	resultsEl.innerHTML = ""
 	resultsEl.classList.toggle("edit-mode", state.editMode)
 
