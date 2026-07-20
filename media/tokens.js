@@ -1,10 +1,10 @@
 // @ts-check
 /// <reference lib="dom" />
 
-// Asynchronous tokenization plumbing: lazy syntax highlighting for context
-// lines (requested when a match block scrolls near the viewport) and
-// debounced live re-tokenization of lines being edited. Responses arrive as
-// messages handled by the entry module.
+// Asynchronous tokenization plumbing: debounced live re-tokenization of
+// lines being edited. Responses arrive as messages handled by the entry
+// module. (Context-line tokens are pushed eagerly by the host alongside
+// search results; see tokenizeResultsAsync in searchPanel.ts.)
 
 import { vscode } from "./ipc.js"
 
@@ -53,50 +53,4 @@ export function cancelScheduledLineTokens(file, lineNumber) {
 		clearTimeout(pending)
 		liveTokenizeTimers.delete(key)
 	}
-}
-
-/** @typedef {{ file: string; lines: Array<{line: number; text: string}>; firstMatchId: number }} BlockContextMeta */
-
-/** @type {Set<number>} first-match IDs of sections that have already been requested */
-const contextTokenRequested = new Set()
-/** @type {WeakMap<Element, BlockContextMeta>} */
-const blockContextMeta = new WeakMap()
-
-const contextObserver = new IntersectionObserver(
-	(entries) => {
-		for (const entry of entries) {
-			if (!entry.isIntersecting) continue
-			const meta = blockContextMeta.get(entry.target)
-			if (!meta || contextTokenRequested.has(meta.firstMatchId)) continue
-			contextTokenRequested.add(meta.firstMatchId)
-			vscode.postMessage({
-				type: "tokenizeContext",
-				matchId: meta.firstMatchId,
-				file: meta.file,
-				lines: meta.lines,
-			})
-		}
-	},
-	{ rootMargin: "200px" },
-)
-
-/**
- * Registers a rendered match block so its context lines are tokenized lazily
- * once the block scrolls near the viewport.
- * @param {Element} block
- * @param {BlockContextMeta} meta
- */
-export function observeBlockContext(block, meta) {
-	blockContextMeta.set(block, meta)
-	contextObserver.observe(block)
-}
-
-// Called before a full re-render replaces the observed blocks.
-export function disconnectContextObserver() {
-	contextObserver.disconnect()
-}
-
-// Called when a new result set arrives and old match IDs become meaningless.
-export function clearContextTokenRequests() {
-	contextTokenRequested.clear()
 }

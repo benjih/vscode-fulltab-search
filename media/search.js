@@ -44,7 +44,6 @@ import {
 	storeLineTokens,
 } from "./model.js"
 import { focusMatch, renderResults } from "./render.js"
-import { clearContextTokenRequests } from "./tokens.js"
 import {
 	caseToggle,
 	editToggle,
@@ -160,7 +159,6 @@ window.addEventListener("message", (event) => {
 			state.collapsedFiles.clear()
 			expandedSections.clear()
 			contextTokenCache.clear()
-			clearContextTokenRequests()
 			state.activeMatchIndex = 0
 			renderResults()
 			updateMatchCounter()

@@ -124,9 +124,6 @@ export class SearchPanel {
 				case "search":
 					await this.runSearch(message.state)
 					break
-				case "cancel":
-					this.cancelSearch()
-					break
 				case "openMatch":
 					await this.openMatch(message.file, message.line, message.column)
 					break
