@@ -86,7 +86,7 @@
 		"vscode-textmate": "^9.3.2"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.5.4",
+		"@biomejs/biome": "2.5.5",
 		"@types/mocha": "10.0.10",
 		"@types/node": "20.19.20",
 		"@types/vscode": "1.90.0",
