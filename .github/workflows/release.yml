@@ -5,6 +5,9 @@ on:
     tags:
       - "v*"
 
+# Deny by default; each job opts in to only what it needs.
+permissions: {}
+
 jobs:
   build:
     strategy:
@@ -91,8 +94,8 @@ jobs:
   publish-vsce:
     needs: release
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
+    # No repo access needed: same-run artifacts use the Actions runtime token.
+    permissions: {}
     steps:
       - uses: actions/download-artifact@v8.0.1
         with:
@@ -117,8 +120,8 @@ jobs:
   publish-ovsx:
     needs: release
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
+    # No repo access needed: same-run artifacts use the Actions runtime token.
+    permissions: {}
     steps:
       - uses: actions/download-artifact@v8.0.1
         with:
