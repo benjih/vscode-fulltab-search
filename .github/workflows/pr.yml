@@ -3,6 +3,9 @@ name: CI
 on:
   pull_request:
 
+# Deny by default; each job opts in to only what it needs.
+permissions: {}
+
 jobs:
   ci:
     runs-on: ubuntu-latest

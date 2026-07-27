@@ -4,6 +4,9 @@ on:
   workflow_dispatch:
   workflow_call:
 
+# Deny by default; each job opts in to only what it needs.
+permissions: {}
+
 jobs:
   cleanup:
     runs-on: ubuntu-latest
