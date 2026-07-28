@@ -76,7 +76,7 @@ suite("E2E Flow Suite", () => {
 
 		try {
 			const token = new vscode.CancellationTokenSource()
-			const count = await engine.replaceAll(
+			const result = await engine.replaceAll(
 				makeQuery({
 					pattern: MARKER,
 					include: "**/.e2e-replace-target.ts",
@@ -86,12 +86,47 @@ suite("E2E Flow Suite", () => {
 			)
 			token.dispose()
 
-			assert.strictEqual(count, 3)
+			assert.strictEqual(result.replaced, 3)
+			assert.strictEqual(result.truncated, false)
+			assert.strictEqual(result.cancelled, false)
 			// Read from disk, not the in-memory document: search runs ripgrep
 			// against disk, so replacements must be persisted to count as applied.
 			const updated = fs.readFileSync(tempFile, "utf8")
 			assert.ok(updated.includes("__FULLTAB_REPLACED__"))
 			assert.ok(!updated.includes(MARKER))
+		} finally {
+			fs.rmSync(tempFile, { force: true })
+		}
+	})
+
+	test("replaceAll expands capture group references in regex mode", async function () {
+		this.timeout(20_000)
+
+		assert.ok(vscode.workspace.workspaceFolders)
+		const root = vscode.workspace.workspaceFolders[0].uri.fsPath
+		const tempFile = path.join(root, "src", ".e2e-capture-target.ts")
+		const original = `const a = ${MARKER}_one;\nconst b = ${MARKER}_two;\n`
+
+		fs.writeFileSync(tempFile, original, "utf8")
+
+		try {
+			const token = new vscode.CancellationTokenSource()
+			const result = await engine.replaceAll(
+				makeQuery({
+					pattern: `${MARKER}_(\\w+)`,
+					useRegex: true,
+					include: "**/.e2e-capture-target.ts",
+					replace: "renamed_$1",
+				}),
+				token.token,
+			)
+			token.dispose()
+
+			assert.strictEqual(result.replaced, 2)
+			assert.strictEqual(
+				fs.readFileSync(tempFile, "utf8"),
+				"const a = renamed_one;\nconst b = renamed_two;\n",
+			)
 		} finally {
 			fs.rmSync(tempFile, { force: true })
 		}

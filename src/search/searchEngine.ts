@@ -3,6 +3,7 @@ import * as fs from "node:fs"
 import { rgPath } from "@vscode/ripgrep"
 import * as vscode from "vscode"
 import { createTimer, searchQueryDetails, timed } from "../debug/metrics"
+import { createReplacementResolver } from "./replacement"
 import {
 	buildRipgrepArgs,
 	createRipgrepParseState,
@@ -24,6 +25,30 @@ import type {
 } from "./types"
 
 const EXPAND_CHUNK = 10
+
+export interface ReplaceAllResult {
+	replaced: number
+	// The underlying search hit the MAX_RESULTS cap: matches beyond it exist
+	// and were not replaced.
+	truncated: boolean
+	// Nothing was replaced because a truncated run was not approved.
+	cancelled: boolean
+}
+
+// Replacement failures are all pattern-level problems the user can act on, but
+// only once they know which match tripped them.
+function withMatchLocation(
+	relativePath: string,
+	line: number,
+	resolve: () => string,
+): string {
+	try {
+		return resolve()
+	} catch (error) {
+		const detail = error instanceof Error ? error.message : String(error)
+		throw new Error(`${relativePath}:${line} — ${detail}`)
+	}
+}
 
 // applyEdit only updates in-memory documents and leaves them dirty — it never
 // writes to disk. Search reads from disk via ripgrep, so edited documents must
@@ -134,16 +159,34 @@ export class SearchEngine {
 		)
 	}
 
+	// A truncated search only knows about the first MAX_RESULTS matches, so
+	// replacing them all would leave the rest silently untouched while
+	// reporting success. Truncated runs are refused unless `onTruncated`
+	// explicitly approves replacing the partial set.
 	async replaceAll(
 		query: SearchQuery,
 		token: vscode.CancellationToken,
-	): Promise<number> {
+		options: {
+			onTruncated?: (matched: number) => Promise<boolean>
+		} = {},
+	): Promise<ReplaceAllResult> {
 		const queryDetails = searchQueryDetails(query)
 		return timed(
 			"replaceAll",
 			queryDetails,
-			async () => {
+			async (): Promise<ReplaceAllResult> => {
 				const results = await this.search(query, token)
+
+				if (results.truncated) {
+					const approved = (await options.onTruncated?.(results.total)) ?? false
+					if (!approved) {
+						return { replaced: 0, truncated: true, cancelled: true }
+					}
+				}
+
+				// Resolving every replacement before touching the workspace keeps a
+				// capture-group failure from applying a half-finished rename.
+				const resolveReplacement = createReplacementResolver(query)
 				const edit = new vscode.WorkspaceEdit()
 				const editedUris: vscode.Uri[] = []
 				let count = 0
@@ -158,7 +201,17 @@ export class SearchEngine {
 							match.line - 1,
 							match.matchEnd,
 						)
-						edit.replace(uri, range, query.replace)
+						edit.replace(
+							uri,
+							range,
+							withMatchLocation(fileResult.relativePath, match.line, () =>
+								resolveReplacement(
+									match.lineText,
+									match.matchStart,
+									match.matchEnd,
+								),
+							),
+						)
 						count++
 					}
 				}
@@ -178,9 +231,13 @@ export class SearchEngine {
 					)
 				}
 
-				return count
+				return {
+					replaced: count,
+					truncated: results.truncated,
+					cancelled: false,
+				}
 			},
-			(c) => ({ replacements: c }),
+			(r) => ({ replacements: r.replaced, truncated: r.truncated }),
 		)
 	}
 
