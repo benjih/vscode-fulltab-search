@@ -40,3 +40,19 @@ test-resources/**
 # devbox
 devbox.json
 devbox.lock
+
+# Dev-only wasm fallback bindings. knip pulls in @oxc-parser / @oxc-resolver /
+# rolldown, whose wasm32-wasi bindings hoist these to the top of node_modules
+# where npm reports them as extraneous. `npm ls --omit=dev` still lists them, so
+# vsce packages them (~9 MB) even though nothing here loads them.
+node_modules/@napi-rs/**
+node_modules/@emnapi/**
+node_modules/@tybys/**
+node_modules/tslib/**
+
+# Codicons: only the stylesheet and the font are loaded by the webview. The rest
+# of the package is a 1.2 MB demo page, the SVG source set, and build metadata.
+node_modules/@vscode/codicons/**
+!node_modules/@vscode/codicons/dist/codicon.css
+!node_modules/@vscode/codicons/dist/codicon.ttf
+!node_modules/@vscode/codicons/LICENSE
