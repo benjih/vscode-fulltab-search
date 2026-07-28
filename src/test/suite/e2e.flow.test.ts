@@ -4,24 +4,23 @@ import * as path from "node:path"
 import * as vscode from "vscode"
 import { SearchEngine } from "../../search/searchEngine"
 import { MARKER, makeQuery, waitForWebviewPanel } from "./testHelpers"
+import { afterAll, beforeAll, describe, it } from "./vitestApi"
 
-suite("E2E Flow Suite", () => {
+describe("E2E Flow Suite", () => {
 	const engine = new SearchEngine()
 
-	suiteSetup(() => {
+	beforeAll(() => {
 		assert.ok(
 			vscode.workspace.workspaceFolders?.[0],
 			"Fixture workspace required",
 		)
 	})
 
-	suiteTeardown(() => {
+	afterAll(() => {
 		engine.cancel()
 	})
 
-	test("open command and search flow", async function () {
-		this.timeout(20_000)
-
+	it("open command and search flow", async () => {
 		await vscode.commands.executeCommand("fullTabSearch.open")
 		assert.ok(await waitForWebviewPanel("fullTabSearch.panel"))
 
@@ -30,11 +29,9 @@ suite("E2E Flow Suite", () => {
 		token.dispose()
 
 		assert.strictEqual(results.total, 4)
-	})
+	}, 20_000)
 
-	test("openMatch navigates editor to match location", async function () {
-		this.timeout(20_000)
-
+	it("openMatch navigates editor to match location", async () => {
 		const token = new vscode.CancellationTokenSource()
 		const results = await engine.search(
 			makeQuery({ include: "**/hello.ts" }),
@@ -60,11 +57,9 @@ suite("E2E Flow Suite", () => {
 		assert.strictEqual(editor.document.uri.fsPath, match.file)
 		assert.strictEqual(editor.selection.active.line, match.line - 1)
 		assert.strictEqual(editor.selection.active.character, match.column)
-	})
+	}, 20_000)
 
-	test("replaceAll updates file contents", async function () {
-		this.timeout(20_000)
-
+	it("replaceAll updates file contents", async () => {
 		assert.ok(vscode.workspace.workspaceFolders)
 		const root = vscode.workspace.workspaceFolders[0].uri.fsPath
 		const tempFile = path.join(root, "src", ".e2e-replace-target.ts")
@@ -97,11 +92,9 @@ suite("E2E Flow Suite", () => {
 		} finally {
 			fs.rmSync(tempFile, { force: true })
 		}
-	})
+	}, 20_000)
 
-	test("replaceAll expands capture group references in regex mode", async function () {
-		this.timeout(20_000)
-
+	it("replaceAll expands capture group references in regex mode", async () => {
 		assert.ok(vscode.workspace.workspaceFolders)
 		const root = vscode.workspace.workspaceFolders[0].uri.fsPath
 		const tempFile = path.join(root, "src", ".e2e-capture-target.ts")
@@ -130,5 +123,5 @@ suite("E2E Flow Suite", () => {
 		} finally {
 			fs.rmSync(tempFile, { force: true })
 		}
-	})
+	}, 20_000)
 })

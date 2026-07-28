@@ -4,26 +4,25 @@ import * as path from "node:path"
 import * as vscode from "vscode"
 import { SearchEngine } from "../../search/searchEngine"
 import { MARKER, makeQuery } from "./testHelpers"
+import { afterAll, beforeAll, describe, it } from "./vitestApi"
 
-suite("SearchEngine Integration Suite", () => {
+describe("SearchEngine Integration Suite", () => {
 	const engine = new SearchEngine()
 	const tokenSource = new vscode.CancellationTokenSource()
 
-	suiteSetup(() => {
+	beforeAll(() => {
 		assert.ok(
 			vscode.workspace.workspaceFolders?.[0],
 			"Fixture workspace must be open for integration tests",
 		)
 	})
 
-	suiteTeardown(() => {
+	afterAll(() => {
 		tokenSource.dispose()
 		engine.cancel()
 	})
 
-	test("finds marker across TypeScript files", async function () {
-		this.timeout(15_000)
-
+	it("finds marker across TypeScript files", async () => {
 		const results = await engine.search(makeQuery(), tokenSource.token)
 
 		assert.strictEqual(results.total, 4)
@@ -35,14 +34,13 @@ suite("SearchEngine Integration Suite", () => {
 		assert.ok(relativePaths.some((p) => p.endsWith("utils.ts")))
 		assert.ok(relativePaths.some((p) => p.endsWith("marker.json")))
 		assert.ok(relativePaths.some((p) => p.endsWith("marker.md")))
-	})
+	}, 15_000)
 
-	test("keeps matches and surfaces a warning when a file is unreadable", async function () {
-		this.timeout(15_000)
+	it("keeps matches and surfaces a warning when a file is unreadable", async (ctx) => {
 		// chmod 0 has no effect when running as root, and doesn't restrict
 		// reads on Windows the way it does on POSIX — skip there.
 		if (process.platform === "win32" || process.getuid?.() === 0) {
-			this.skip()
+			ctx.skip()
 			return
 		}
 
@@ -61,11 +59,9 @@ suite("SearchEngine Integration Suite", () => {
 			await fs.chmod(unreadablePath, 0o644)
 			await fs.unlink(unreadablePath)
 		}
-	})
+	}, 15_000)
 
-	test("respects include glob", async function () {
-		this.timeout(15_000)
-
+	it("respects include glob", async () => {
 		const results = await engine.search(
 			makeQuery({ include: "**/hello.ts" }),
 			tokenSource.token,
@@ -73,20 +69,18 @@ suite("SearchEngine Integration Suite", () => {
 
 		assert.strictEqual(results.total, 1)
 		assert.ok(results.fileResults[0].fileName.endsWith("hello.ts"))
-	})
+	}, 15_000)
 
-	test("respects exclude glob", async function () {
-		this.timeout(15_000)
-
+	it("respects exclude glob", async () => {
 		const results = await engine.search(
 			makeQuery({ exclude: "*.log, **/*.ts, **/*.json, **/*.md" }),
 			tokenSource.token,
 		)
 
 		assert.strictEqual(results.total, 0)
-	})
+	}, 15_000)
 
-	test("returns empty results for blank pattern", async () => {
+	it("returns empty results for blank pattern", async () => {
 		const results = await engine.search(
 			makeQuery({ pattern: "   " }),
 			tokenSource.token,
@@ -96,9 +90,7 @@ suite("SearchEngine Integration Suite", () => {
 		assert.deepStrictEqual(results.fileResults, [])
 	})
 
-	test("adds breadcrumbs for function context", async function () {
-		this.timeout(15_000)
-
+	it("adds breadcrumbs for function context", async () => {
 		const results = await engine.search(makeQuery(), tokenSource.token)
 		const helloFile = results.fileResults.find(
 			(entry) => entry.fileName === "hello.ts",
@@ -106,9 +98,9 @@ suite("SearchEngine Integration Suite", () => {
 		assert.ok(helloFile)
 		const match = helloFile.matches[0]
 		assert.ok(match.breadcrumb.includes("greet"))
-	})
+	}, 15_000)
 
-	test("expandContext returns surrounding lines", async () => {
+	it("expandContext returns surrounding lines", async () => {
 		assert.ok(vscode.workspace.workspaceFolders)
 		const root = vscode.workspace.workspaceFolders[0].uri.fsPath
 		const filePath = path.join(root, "src", "hello.ts")
@@ -124,9 +116,7 @@ suite("SearchEngine Integration Suite", () => {
 		assert.strictEqual(typeof hasMore, "boolean")
 	})
 
-	test("cancels in-flight search", async function () {
-		this.timeout(15_000)
-
+	it("cancels in-flight search", async () => {
 		const cancelSource = new vscode.CancellationTokenSource()
 		const searchPromise = engine.search(
 			makeQuery({ pattern: MARKER }),
@@ -138,5 +128,5 @@ suite("SearchEngine Integration Suite", () => {
 		const results = await searchPromise
 		assert.ok(results.total >= 0)
 		cancelSource.dispose()
-	})
+	}, 15_000)
 })

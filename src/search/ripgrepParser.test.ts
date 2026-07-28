@@ -1,4 +1,5 @@
 import assert from "node:assert"
+import { describe, it } from "vitest"
 import {
 	buildRipgrepArgs,
 	createRipgrepParseState,
@@ -64,7 +65,9 @@ describe("buildRipgrepArgs", () => {
 			"/root",
 		)
 		assert.ok(args.includes("-g"))
-		assert.ok(["**/src/**", "!*.log", "!**/dist/**"].every((x) => args.includes(x)))
+		assert.ok(
+			["**/src/**", "!*.log", "!**/dist/**"].every((x) => args.includes(x)),
+		)
 	})
 })
 

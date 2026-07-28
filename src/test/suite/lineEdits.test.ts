@@ -8,8 +8,9 @@ import {
 	applyLineSplit,
 } from "../../search/lineEdits"
 import { saveEditedDocuments } from "../../search/searchEngine"
+import { afterAll, describe, it } from "./vitestApi"
 
-suite("Line Edits Suite", () => {
+describe("Line Edits Suite", () => {
 	let counter = 0
 	const tempFiles: string[] = []
 
@@ -30,7 +31,7 @@ suite("Line Edits Suite", () => {
 		return file
 	}
 
-	suiteTeardown(async () => {
+	afterAll(async () => {
 		// Flush dirty documents before deleting so no unsaved buffers linger.
 		await saveEditedDocuments(tempFiles.map((f) => vscode.Uri.file(f)))
 		for (const file of tempFiles) {
@@ -38,7 +39,7 @@ suite("Line Edits Suite", () => {
 		}
 	})
 
-	test("applyLineEdit replaces the line in the buffer, not on disk", async () => {
+	it("applyLineEdit replaces the line in the buffer, not on disk", async () => {
 		const file = createTempFile("alpha\nbravo\ncharlie\n")
 
 		const uri = await applyLineEdit(file, 2, "BRAVO EDITED")
@@ -57,7 +58,7 @@ suite("Line Edits Suite", () => {
 		)
 	})
 
-	test("saveEditedDocuments persists pending edits to disk", async () => {
+	it("saveEditedDocuments persists pending edits to disk", async () => {
 		const file = createTempFile("alpha\nbravo\n")
 
 		const uri = await applyLineEdit(file, 1, "ALPHA EDITED")
@@ -68,7 +69,7 @@ suite("Line Edits Suite", () => {
 		assert.strictEqual(fs.readFileSync(file, "utf8"), "ALPHA EDITED\nbravo\n")
 	})
 
-	test("applyLineSplit inserts a line break at the caret position", async () => {
+	it("applyLineSplit inserts a line break at the caret position", async () => {
 		const file = createTempFile("const value = 1\nsecond\n")
 
 		const uri = await applyLineSplit(file, 1, "const ", "value = 1")
@@ -78,7 +79,7 @@ suite("Line Edits Suite", () => {
 		assert.strictEqual(document.lineCount, 4)
 	})
 
-	test("applyLineSplit preserves CRLF line endings", async () => {
+	it("applyLineSplit preserves CRLF line endings", async () => {
 		const file = createTempFile("alpha\r\nbravo\r\n")
 
 		const uri = await applyLineSplit(file, 1, "al", "pha")
@@ -88,7 +89,7 @@ suite("Line Edits Suite", () => {
 		assert.strictEqual(document.getText(), "al\r\npha\r\nbravo\r\n")
 	})
 
-	test("applyLineJoin merges a line into the previous one", async () => {
+	it("applyLineJoin merges a line into the previous one", async () => {
 		const file = createTempFile("first\nsecond\nthird\n")
 
 		const uri = await applyLineJoin(file, 2, "firstsecond")
@@ -98,7 +99,7 @@ suite("Line Edits Suite", () => {
 		assert.strictEqual(document.getText(), "firstsecond\nthird\n")
 	})
 
-	test("applyLineJoin merges uncommitted typing from the caller", async () => {
+	it("applyLineJoin merges uncommitted typing from the caller", async () => {
 		// The webview computes mergedContent from its DOM, which may contain
 		// typing never applied to the document — the join must win over the
 		// stale document text.
@@ -111,7 +112,7 @@ suite("Line Edits Suite", () => {
 		assert.strictEqual(document.getText(), "firstSECOND TYPED\n")
 	})
 
-	test("applyLineJoin on the first line is a no-op", async () => {
+	it("applyLineJoin on the first line is a no-op", async () => {
 		const file = createTempFile("first\nsecond\n")
 
 		const uri = await applyLineJoin(file, 1, "whatever")
@@ -123,7 +124,7 @@ suite("Line Edits Suite", () => {
 		assert.strictEqual(document.getText(), "first\nsecond\n")
 	})
 
-	test("edit, split, join sequence then save matches the final state", async () => {
+	it("edit, split, join sequence then save matches the final state", async () => {
 		const file = createTempFile("one\ntwo\nthree\n")
 
 		// Edit line 2, split it, then join the split back together.
