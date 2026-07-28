@@ -24,8 +24,11 @@ import {
 	readFileSync,
 	rmSync,
 } from "node:fs"
-import { tmpdir } from "node:os"
-import { join } from "node:path"
+// Forward slashes throughout: Node's fs accepts them on Windows, and the tar
+// invocation below needs them (MSYS tar does not treat "\" as a separator).
+import { posix } from "node:path"
+
+const { join } = posix
 
 const VSCODE_DIR = join("node_modules", "@vscode")
 
@@ -55,7 +58,12 @@ if (!version) {
 }
 
 const dest = join(VSCODE_DIR, pkgName.replace("@vscode/", ""))
-const stage = mkdtempSync(join(tmpdir(), "stage-rg-"))
+// Stage inside node_modules rather than the OS temp dir, and keep every path
+// handed to tar relative. GNU tar — which is what `shell: bash` puts on PATH on
+// the Windows runners — reads a colon in the -f argument as a remote host spec,
+// so an absolute Windows path fails with "Cannot connect to C: resolve failed".
+// A relative path has no colon and suits both GNU tar and bsdtar.
+const stage = mkdtempSync(join("node_modules", ".stage-rg-"))
 try {
 	execFileSync(
 		"npm",
