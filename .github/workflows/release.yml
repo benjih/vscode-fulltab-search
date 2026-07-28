@@ -54,17 +54,28 @@ jobs:
           jq --arg v "$VERSION" '.version = $v' package.json > package.json.tmp
           mv package.json.tmp package.json
 
+      # stageRipgrep swaps in the target platform's ripgrep binary. npm installs
+      # only the build host's, and half this matrix cross-compiles.
       - name: Build and package (devbox)
         if: matrix.use_devbox
+        shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: devbox run -- make build && devbox run -- npm run package -- --target ${{ matrix.target }}
+        run: |
+          devbox run -- make build
+          devbox run -- node scripts/stageRipgrep.mjs ${{ matrix.target }}
+          devbox run -- npm run package -- --target ${{ matrix.target }}
 
       - name: Build and package
         if: ${{ !matrix.use_devbox }}
+        shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm ci && npm run compile && npm run package -- --target ${{ matrix.target }}
+        run: |
+          npm ci
+          npm run compile
+          node scripts/stageRipgrep.mjs ${{ matrix.target }}
+          npm run package -- --target ${{ matrix.target }}
 
       - uses: actions/upload-artifact@v7.0.1
         with:
