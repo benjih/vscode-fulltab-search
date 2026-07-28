@@ -21,7 +21,6 @@
 		"virtualWorkspaces": true
 	},
 	"activationEvents": [
-		"onCommand:fullTabSearch.open",
 		"onCommand:fullTabSearch.getDebugMetrics",
 		"onCommand:fullTabSearch.clearDebugMetrics"
 	],
