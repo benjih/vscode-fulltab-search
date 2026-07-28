@@ -3,6 +3,7 @@ import * as vscode from "vscode"
 import { findMetric, type RecordedMetric } from "../../debug/metrics"
 import { SearchEngine } from "../../search/searchEngine"
 import { makeQuery } from "./testHelpers"
+import { afterAll, beforeAll, describe, it } from "./vitestApi"
 
 const SEARCH_BUDGET_MS = 15_000
 
@@ -17,23 +18,21 @@ async function withDebugEnabled<T>(fn: () => Promise<T>): Promise<T> {
 	}
 }
 
-suite("Performance Metrics Suite", () => {
+describe("Performance Metrics Suite", () => {
 	const engine = new SearchEngine()
 
-	suiteSetup(() => {
+	beforeAll(() => {
 		assert.ok(
 			vscode.workspace.workspaceFolders?.[0],
 			"Fixture workspace must be open for performance tests",
 		)
 	})
 
-	suiteTeardown(() => {
+	afterAll(() => {
 		engine.cancel()
 	})
 
-	test("records search timings retrievable via test command", async function () {
-		this.timeout(20_000)
-
+	it("records search timings retrievable via test command", async () => {
 		await withDebugEnabled(async () => {
 			await vscode.commands.executeCommand("fullTabSearch.clearDebugMetrics")
 
@@ -61,5 +60,5 @@ suite("Performance Metrics Suite", () => {
 			assert.ok(ripgrepMetric)
 			assert.ok(ripgrepMetric.durationMs <= searchMetric.durationMs)
 		})
-	})
+	}, 20_000)
 })

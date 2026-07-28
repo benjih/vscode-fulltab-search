@@ -1,5 +1,6 @@
 import assert from "node:assert"
 import * as path from "node:path"
+import { describe, it } from "vitest"
 import {
 	breadcrumbFromIndex,
 	buildSymbolIndex,
