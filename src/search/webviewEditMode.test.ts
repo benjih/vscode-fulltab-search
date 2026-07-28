@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
-// Tests for the edit-mode behavior of the webview script (media/search.js).
+// Tests for the webview script (media/search.js): edit mode, and the replace
+// flow it drives from the toolbar.
 //
 // The webview is a graph of ES modules with media/search.js as the entry
 // point. Each test imports the entry fresh (vi.resetModules) into a jsdom
@@ -399,6 +400,49 @@ describe("saving", () => {
 
 		deliver({ type: "editsSaved", count: 0 })
 		expect(elementById("statusBar").textContent).toBe("No unsaved changes")
+	})
+})
+
+describe("replace", () => {
+	it("sends the query and the match line so the host can expand captures", () => {
+		;(elementById("patternInput") as HTMLInputElement).value = "(mark)er"
+		elementById("regexToggle").classList.add("active")
+		;(elementById("replaceInput") as HTMLInputElement).value = "$1ed"
+		elementById("replaceOne").click()
+
+		expect(ofType(posted, "replaceMatch")).toEqual([
+			{
+				type: "replaceMatch",
+				file: FILE,
+				line: 5,
+				column: 6,
+				length: 6,
+				lineText: "const marker = alpha",
+				state: expect.objectContaining({
+					pattern: "(mark)er",
+					replace: "$1ed",
+					useRegex: true,
+				}),
+			},
+		])
+	})
+
+	it("reports that a truncated Replace All left matches behind", () => {
+		deliver({ type: "replaced", count: 10000, truncated: true })
+
+		expect(elementById("statusBar").textContent).toBe(
+			"Replaced 10000 occurrences — results were truncated, run Replace All again for the rest",
+		)
+		expect(ofType(posted, "search")).toHaveLength(1)
+	})
+
+	it("does not re-search when a truncated Replace All was declined", () => {
+		deliver({ type: "replaced", count: 0, truncated: true, cancelled: true })
+
+		expect(elementById("statusBar").textContent).toBe(
+			"Replace All cancelled — too many matches",
+		)
+		expect(ofType(posted, "search")).toHaveLength(0)
 	})
 })
 

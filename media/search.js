@@ -99,19 +99,23 @@ editToggle.addEventListener("click", () => {
 })
 
 replaceOne.addEventListener("click", () => {
+	syncStateFromInputs()
 	const matches = flattenMatches()
 	const match = matches[state.activeMatchIndex]
 	if (!match) {
 		return
 	}
 
+	// The host derives the replacement text from the query: in regex mode it
+	// expands $1/$& against this match, exactly as Replace All does.
 	vscode.postMessage({
 		type: "replaceMatch",
 		file: match.file,
 		line: match.line,
 		column: match.matchStart,
 		length: match.matchEnd - match.matchStart,
-		replacement: state.searchState.replace,
+		lineText: match.lineText,
+		state: state.searchState,
 	})
 })
 
@@ -175,12 +179,20 @@ window.addEventListener("message", (event) => {
 		case "error":
 			setStatus(message.message)
 			break
-		case "replaced":
+		case "replaced": {
+			if (message.cancelled) {
+				setStatus("Replace All cancelled — too many matches")
+				break
+			}
+			const replaced = `Replaced ${message.count} occurrence${message.count === 1 ? "" : "s"}`
 			setStatus(
-				`Replaced ${message.count} occurrence${message.count === 1 ? "" : "s"}`,
+				message.truncated
+					? `${replaced} — results were truncated, run Replace All again for the rest`
+					: replaced,
 			)
 			scheduleSearch()
 			break
+		}
 		case "matchTokens": {
 			if (state.currentResults?.queryId !== message.queryId) break
 			for (const { matchId, tokens } of message.tokens) {

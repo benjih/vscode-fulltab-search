@@ -5,6 +5,8 @@ import { enrichResults } from "./enrichResults"
 import { FileIconResolver } from "./fileIconResolver"
 import { getWebviewHtml } from "./getWebviewHtml"
 import { applyLineEdit, applyLineJoin, applyLineSplit } from "./lineEdits"
+import { createReplacementResolver } from "./replacement"
+import { MAX_RESULTS } from "./ripgrepParser"
 import { SearchEngine, saveEditedDocuments } from "./searchEngine"
 import type {
 	ContextLine,
@@ -133,7 +135,8 @@ export class SearchPanel {
 						message.line,
 						message.column,
 						message.length,
-						message.replacement,
+						message.lineText,
+						message.state,
 					)
 					break
 				case "replaceAll":
@@ -160,7 +163,11 @@ export class SearchPanel {
 					)
 					break
 				case "joinLines":
-					await this.joinLines(message.file, message.line, message.mergedContent)
+					await this.joinLines(
+						message.file,
+						message.line,
+						message.mergedContent,
+					)
 					break
 				case "saveEdits":
 					await this.saveEdits()
@@ -170,8 +177,7 @@ export class SearchPanel {
 					break
 			}
 		} catch (error) {
-			const detail =
-				error instanceof Error ? error.message : "Operation failed"
+			const detail = error instanceof Error ? error.message : "Operation failed"
 			this.postMessage({ type: "error", message: detail })
 		}
 	}
@@ -356,13 +362,21 @@ export class SearchPanel {
 				"runReplaceAll",
 				queryDetails,
 				async () => {
-					const count = await this.engine.replaceAll(
+					const result = await this.engine.replaceAll(
 						{ id: `replace-${++this.queryCounter}`, ...state },
 						this.searchTokenSource!.token,
+						{ onTruncated: (matched) => this.confirmTruncatedReplace(matched) },
 					)
-					this.postMessage({ type: "replaced", count })
-					await this.runSearch(state)
-					return count
+					this.postMessage({
+						type: "replaced",
+						count: result.replaced,
+						truncated: result.truncated,
+						cancelled: result.cancelled,
+					})
+					if (!result.cancelled) {
+						await this.runSearch(state)
+					}
+					return result.replaced
 				},
 				(count) => ({ replacements: count }),
 			)
@@ -370,6 +384,23 @@ export class SearchPanel {
 			const message = error instanceof Error ? error.message : "Replace failed"
 			this.postMessage({ type: "error", message })
 		}
+	}
+
+	// Shown before replacing a truncated result set: the search only knows
+	// about the first MAX_RESULTS matches, so this pass cannot be the whole
+	// rename and the user has to opt into the partial one.
+	private async confirmTruncatedReplace(matched: number): Promise<boolean> {
+		const proceed = `Replace ${matched.toLocaleString()} Matches`
+		const choice = await vscode.window.showWarningMessage(
+			`Results are capped at ${MAX_RESULTS.toLocaleString()} matches and more were found, so Replace All cannot replace every occurrence in one pass.`,
+			{
+				modal: true,
+				detail:
+					"Replace the matches found so far and run Replace All again for the remainder, or cancel and narrow the search with include/exclude filters first.",
+			},
+			proceed,
+		)
+		return choice === proceed
 	}
 
 	private async openMatch(
@@ -397,8 +428,14 @@ export class SearchPanel {
 		line: number,
 		column: number,
 		length: number,
-		replacement: string,
+		lineText: string,
+		state: SearchState,
 	): Promise<void> {
+		const replacement = createReplacementResolver(state)(
+			lineText,
+			column,
+			column + length,
+		)
 		const uri = vscode.Uri.file(file)
 		const edit = new vscode.WorkspaceEdit()
 		edit.replace(

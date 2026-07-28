@@ -71,7 +71,10 @@ export type WebviewMessage =
 			line: number
 			column: number
 			length: number
-			replacement: string
+			// The line as the webview has it, so the host can re-run the pattern
+			// over this match to expand capture group references.
+			lineText: string
+			state: SearchState
 	  }
 	| { type: "replaceAll"; state: SearchState }
 	| {
@@ -100,7 +103,14 @@ export type ExtensionMessage =
 	| { type: "searching" }
 	| { type: "results"; results: SearchResults }
 	| { type: "error"; message: string }
-	| { type: "replaced"; count: number }
+	| {
+			type: "replaced"
+			count: number
+			// Set by Replace All: more matches existed than the search returned,
+			// and `cancelled` when that made the run refuse to replace anything.
+			truncated?: boolean
+			cancelled?: boolean
+	  }
 	| {
 			type: "expanded"
 			matchId: number
