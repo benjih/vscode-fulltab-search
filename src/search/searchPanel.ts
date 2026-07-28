@@ -22,7 +22,12 @@ const STATE_KEY = "fullTabSearch.state"
 
 export class SearchPanel {
 	private static currentPanel: SearchPanel | undefined
+	private static creating: Promise<void> | undefined
 	private readonly panel: vscode.WebviewPanel
+	// Owned by this panel, not by the extension context: everything registered
+	// here is torn down when the panel closes, so repeated open/close cycles
+	// don't accumulate listeners for the lifetime of the extension.
+	private readonly disposables: vscode.Disposable[] = []
 	private readonly engine = new SearchEngine()
 	private readonly tokenizer: SyntaxTokenizer
 	private queryCounter = 0
@@ -35,11 +40,10 @@ export class SearchPanel {
 		panel: vscode.WebviewPanel,
 		private readonly extensionUri: vscode.Uri,
 		private readonly globalState: vscode.Memento,
-		disposables: vscode.Disposable[],
 		private readonly iconResolver: FileIconResolver,
 	) {
 		this.panel = panel
-		this.tokenizer = new SyntaxTokenizer(extensionUri, disposables)
+		this.tokenizer = new SyntaxTokenizer(extensionUri, this.disposables)
 
 		const fontFaceCss = iconResolver.generateFontFaceCss(this.panel.webview)
 		this.panel.webview.html = getWebviewHtml(
@@ -50,24 +54,44 @@ export class SearchPanel {
 		this.panel.webview.onDidReceiveMessage(
 			(message) => void this.handleMessage(message as WebviewMessage),
 			undefined,
-			disposables,
+			this.disposables,
 		)
 		this.panel.onDidDispose(
 			() => {
 				SearchPanel.currentPanel = undefined
 				this.cancelSearch()
+				// splice() first so disposing this very handler can't re-enter
+				// the list we're walking.
+				for (const disposable of this.disposables.splice(0)) {
+					disposable.dispose()
+				}
 			},
 			null,
-			disposables,
+			this.disposables,
 		)
 	}
 
 	static async show(context: vscode.ExtensionContext): Promise<void> {
-		if (SearchPanel.currentPanel) {
-			SearchPanel.currentPanel.panel.reveal(vscode.ViewColumn.One)
-			return
+		// Creation awaits the icon theme load before currentPanel is set, so a
+		// second invocation arriving during that window would build a second
+		// panel and orphan the first. The in-flight promise is the guard:
+		// latecomers wait on it rather than starting their own creation.
+		if (!SearchPanel.currentPanel) {
+			if (SearchPanel.creating) {
+				await SearchPanel.creating
+			} else {
+				SearchPanel.creating = SearchPanel.create(context)
+				try {
+					await SearchPanel.creating
+				} finally {
+					SearchPanel.creating = undefined
+				}
+			}
 		}
+		SearchPanel.currentPanel?.panel.reveal(vscode.ViewColumn.One)
+	}
 
+	private static async create(context: vscode.ExtensionContext): Promise<void> {
 		const iconResolver = new FileIconResolver()
 		await iconResolver.load()
 
@@ -99,7 +123,6 @@ export class SearchPanel {
 			panel,
 			context.extensionUri,
 			context.globalState,
-			context.subscriptions,
 			iconResolver,
 		)
 	}
