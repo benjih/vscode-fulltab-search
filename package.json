@@ -92,7 +92,7 @@
 		"@vscode/vsce": "^3.9.2",
 		"gifenc": "^1.0.3",
 		"glob": "13.0.6",
-		"jsdom": "30.0.0",
+		"jsdom": "30.0.1",
 		"knip": "6.32.2",
 		"pngjs": "^7.0.0",
 		"typescript": "7.0.2",
