@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [lint, test, build, test-ui]
+        target: [lint, test, coverage, build, test-ui]
     steps:
       - uses: actions/checkout@v7.0.1
 
@@ -31,3 +31,12 @@ jobs:
           else
             devbox run -- make ${{ matrix.target }}
           fi
+
+      # Uploaded even when the run failed: a breached coverage threshold is
+      # exactly when the report is worth reading.
+      - name: Upload coverage report
+        if: ${{ matrix.target == 'coverage' && !cancelled() }}
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: coverage
+          path: coverage/

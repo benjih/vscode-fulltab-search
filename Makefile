@@ -1,4 +1,4 @@
-.PHONY: install lint test test-unit test-integration test-ui build package demo-gif
+.PHONY: install lint test test-unit coverage test-integration test-ui build package demo-gif
 
 install:
 	npm install
@@ -10,6 +10,9 @@ test: test-unit test-integration
 
 test-unit: install
 	npm run test:unit
+
+coverage: install
+	npm run test:unit:coverage
 
 test-integration: build
 	npm run test:integration
