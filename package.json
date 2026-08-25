@@ -99,6 +99,6 @@
 		"pngjs": "^7.0.0",
 		"typescript": "7.0.2",
 		"vitest": "4.1.10",
-		"vscode-extension-tester": "^8.23.0"
+		"vscode-extension-tester": "8.24.0"
 	}
 }
